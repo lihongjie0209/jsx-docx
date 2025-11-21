@@ -7,28 +7,66 @@
 - 文本节点：字符串会渲染为段落或文字的文本内容。
 - 颜色：统一使用 `#RRGGBB`，渲染时自动去掉 `#`。
 
-  - `orientation`: `"portrait" | "landscape"`（页面方向）。
+
 ## <Document>
+- 作用：文档根元素。
+- 子节点：`<Section>`、`<Header>`、`<Footer>`、`<Paragraph>`、`<Heading>`、`<Table>`、`<BulletedList>`、`<NumberedList>`、`<PageBreak>` 等块级组件。
 - 属性：无。
 - 行为：创建 XWPFDocument；非 `<Section>` 的子节点在默认节中渲染。
- - 属性：
-   - `type`: `"default" | "first" | "even" | "odd"`，其中 `odd` 等价于默认页眉（在启用奇偶页区分时用于奇数页）。
- - 行为：根据 `type` 创建对应页眉。`first` 会启用 `titlePg`；`even`/`odd` 会启用奇偶页页眉设置。可在页眉段落中使用 `<PageNumber>`。
+- 实现状态：已实现。
+
+## <Section>
+- 作用：文档分节，用于设置页面布局属性。
+- 子节点：块级组件（`<Paragraph>`、`<Heading>`、`<Table>` 等）。
 - 属性：
-  - `align`: `"left" | "center" | "right" | "both"`。
- - 属性：
-   - `type`: `"default" | "first" | "even" | "odd"`，含义同 `<Header>`。
- - 行为：根据 `type` 创建对应页脚。`first` 会启用 `titlePg`；`even`/`odd` 会启用奇偶页页眉页脚设置。可在页脚段落中使用 `<PageNumber>`。
+  - `pageSize`: 页面尺寸，字符串 `"A4" | "LETTER"`。
+  - `orientation`: 页面方向，字符串 `"portrait" | "landscape"`。
+  - `margins`: 页边距对象，单位为英寸（inches），字段：`top`, `bottom`, `left`, `right`（缺省字段保持默认）。
+- 行为：在文档中应用节属性（页面大小、方向、边距），然后渲染子节点。
+- 实现状态：已实现。
+
+## <Header>
+- 作用：文档页眉区域内容。
+- 子节点：块级组件（如 `<Paragraph>`、`<Text>` 等）。
+- 属性：
+  - `type`: `"default" | "first" | "even" | "odd"`，其中 `odd` 等价于默认页眉（在启用奇偶页区分时用于奇数页）。
+- 行为：根据 `type` 创建对应页眉。`first` 会启用 `titlePg`；`even`/`odd` 会启用奇偶页页眉设置。可在页眉段落中使用 `<PageNumber>`。
+- 实现状态：已实现。
+
+## <Footer>
+- 作用：文档页脚区域内容。
+- 子节点：块级组件（如 `<Paragraph>`、`<Text>` 等）。
+- 属性：
+  - `type`: `"default" | "first" | "even" | "odd"`，含义同 `<Header>`。
+- 行为：根据 `type` 创建对应页脚。`first` 会启用 `titlePg`；`even`/`odd` 会启用奇偶页页眉页脚设置。可在页脚段落中使用 `<PageNumber>`。
+- 实现状态：已实现。
+
+## <Paragraph>
+- 作用：段落元素。
+- 子节点：`<Text>`、`<Link>`、`<Image>`、`<Br>`、`<Tab>`、`<PageNumber>` 或纯文本。
+- 属性：
+  - `align`: `"left" | "center" | "right" | "both"`（对齐方式）。
+  - `before`: 段前间距（磅 pt）。
+  - `after`: 段后间距（磅 pt）。
+  - `line`: 行间距倍数（如 `1.5` 表示 1.5 倍行距）。
+  - `indentLeft`: 左缩进（磅 pt）。
+  - `indentRight`: 右缩进（磅 pt）。
+  - `firstLine`: 首行缩进（磅 pt）。
+  - `keepWithNext`: 布尔，与下一段保持在同一页。
+  - `keepLines`: 布尔，段落内容不跨页分割。
+  - `background`: 段落背景色 `#RRGGBB`。
   - `border`: 布尔或对象。布尔 `false` 关闭四边边框；对象 `{ size: 1, color: "#RRGGBB", sides: ["top","right","bottom","left"] }`，`size` 为磅（pt），`sides` 省略表示四边。
   - `tabStops`: 数组，段落制表位设置。元素为 `{ pos, align, leader }`：
+    - `pos`: 制表位位置（磅 pt）。
     - `align`: `"left" | "center" | "right" | "decimal" | "bar"`。
     - `leader`: `"none" | "dots" | "dashes" | "underline" | "heavy" | "middleDot"`。
-  - `levelConfig`: 数组，按层级（0..8）提供高级设置项，元素：
-    - `format`: 同上（覆盖全局）。
-    - `lvlText`: 自定义级别文本模式（如 `"%1.%2)"`）。
-    - `indent`: `{ left: pt, hanging: pt }` 段落缩进（左缩进与悬挂缩进，单位 pt）。
+- 行为：创建段落，应用所有格式属性，然后渲染子节点。
+- 实现状态：已实现。
 
 ## <Text>
+- 作用：文本格式化（内联）。
+- 子节点：纯文本字符串。
+- 属性：
   - `bold`: 布尔，加粗。
   - `italic`: 布尔，斜体。
   - `size`: 整数磅。
@@ -37,21 +75,36 @@
   - `strike`: 布尔，删除线。
   - `highlight`: 字符串，高亮颜色（Word 预设名），如 `"yellow"`, `"green"`, `"cyan"` 等。
   - `font`: 字体族名称（如 `"Arial"`）。
+- 行为：创建带格式的文本运行（Run），应用所有文本格式。
+- 实现状态：已实现。
 
 ## <Heading>
+- 作用：标题段落。
+- 子节点：纯文本或 `<Text>`。
+- 属性：
   - `level`: 整数 `1..6`，映射样式 `Heading{level}`。
 - 行为：创建段落并设置样式 `Heading{level}`，渲染子节点。
 - 实现状态：已实现。
+
 ## <Table>
+- 作用：表格元素。
 - 子节点：`<Row>`。
 - 属性：
+  - `border`: 布尔或对象。布尔 `false` 关闭所有边框；对象 `{ size: 1, color: "#RRGGBB" }`，`size` 为磅（pt）。
+  - `width`: 表格宽度。支持百分比字符串（如 `"100%"`，使用 PCT 模式，`100%`=5000）。
+  - `align`: `"left" | "center" | "right"`（表格对齐）。
+  - `layout`: `"fixed"`（固定列宽布局）。
+  - `columns`: 数组，列宽定义（磅 pt）。设置后自动启用 `layout: fixed`。
 - 行为：创建表格并移除默认首行；根据属性设置表格边框、宽度（百分比使用 PCT，`100%`=5000）、对齐；渲染行。
+- 实现状态：已实现。
+
 ## <PageNumber>
 - 作用：页码域（可用于任何段落，包括正文/页眉/页脚）。
 - 子节点：无。
 - 属性：无。
 - 行为：在当前段落插入 `PAGE` 字段（Word 字段），显示当前页码。
 - 实现状态：已实现。
+
 ## <Row>
 - 作用：表格行。
 - 子节点：`<Cell>`。
@@ -59,7 +112,7 @@
   - `header`: 布尔。为 `true` 时此行为表头行（跨页重复）。
   - `height`: 行高（磅，pt）。
 - 行为：创建行，按顺序渲染单元格；若为表头行则设置跨页重复；若设置行高则应用固定高度。
-- 实现状态：`header` 已实现；`height` 本迭代实现。
+- 实现状态：已实现。
 
 ## <Cell>
 - 作用：表格单元格。
@@ -73,7 +126,7 @@
   - `colspan`: 列合并，整数 ≥ 1（默认 1）。
   - `rowspan`: 行合并，整数 ≥ 1（默认 1）。
 - 行为：创建单元格，应用垂直对齐与内边距（pt → twips，写入 `tcPr.vAlign` 与 `tcPr.tcMar`），再渲染子节点（段落会追加）。
-- 实现状态：`vAlign`、`padding` 已实现；`width` 已实现；`background` 本迭代实现。
+- 实现状态：已实现。
 
 合并行为说明：
 - `colspan` 通过 `tcPr.gridSpan` 生效；`rowspan` 通过 `tcPr.vMerge` 生效，首个单元格为 `restart`，下方连续行自动插入 `continue` 单元格以保持表格网格一致。
@@ -87,6 +140,7 @@
 - 实现状态：已实现。
 
 ## <BulletedList>
+- 作用：项目符号列表。
 - 子节点：`<ListItem>`。
 - 属性：
   - `bulletChar`: 字符串，项目符号字符（默认为 Wingdings 字体的 'l' 显示为 •）。支持：
@@ -108,41 +162,35 @@
 - 实现状态：已实现（支持多级、自定义项目符号字符、字体与缩进）。
 
 ## <NumberedList>
+- 作用：编号列表。
+- 子节点：`<ListItem>`。
 - 属性：
   - `start`: 起始编号（默认 1）。
   - `format`: `"decimal" | "lowerLetter" | "upperLetter" | "lowerRoman" | "upperRoman"`（默认 `decimal`）。
+  - `levelConfig`: 数组，按层级（0..8）提供高级设置项，元素：
+    - `format`: 同上（覆盖全局）。
+    - `lvlText`: 自定义级别文本模式（如 `"%1.%2)"`）。
+    - `indent`: `{ left: pt, hanging: pt }` 段落缩进（左缩进与悬挂缩进，单位 pt）。
 - 行为：根据 `format` 创建编号样式（9 个层级）；根据 `start` 设置实例级起始值；每个 `<ListItem>` 渲染为带序号的段落。支持多级列表（`<ListItem level={n}/>`，`n` 范围 0..8）。
-- 实现状态：已实现（含多级与起始值、format）。
+- 实现状态：已实现（含多级与起始值、format、levelConfig）。
 
 ## <Br>
 - 作用：段落内换行（软换行）。
 - 子节点：无。
+- 属性：无。
 - 行为：在当前段落插入 `w:br`。
 - 实现状态：已实现。
 
 ## <Tab>
 - 作用：段落内制表符。
 - 子节点：无。
+- 属性：无。
 - 行为：在当前段落插入 `w:tab`。
 - 实现状态：已实现。
 
-## <Header>
-- 作用：文档页眉区域内容。
-- 子节点：块级组件（如 `<Paragraph>`、`<Text>` 等）。
-- 属性：
-  - `type`: `"default" | "first" | "even" | "odd"`，其中 `odd` 等价于默认页眉（在启用奇偶页区分时用于奇数页）。
-- 行为：根据 `type` 创建对应页眉。`first` 会启用 `titlePg`；`even`/`odd` 会启用奇偶页页眉设置。可在页眉段落中使用 `<PageNumber>`。
-- 实现状态：已实现。
-
-## <Footer>
-- 作用：文档页脚区域内容。
-- 子节点：块级组件（如 `<Paragraph>`、`<Text>` 等）。
-- 属性：
-  - `type`: `"default" | "first" | "even" | "odd"`，含义同 `<Header>`。
-- 行为：根据 `type` 创建对应页脚。`first` 会启用 `titlePg`；`even`/`odd` 会启用奇偶页页眉页脚设置。可在页脚段落中使用 `<PageNumber>`。
-- 实现状态：已实现。
-
 ## <ListItem>
+- 作用：列表项。
+- 子节点：纯文本或内联组件（`<Text>`、`<Link>` 等）。
 - 属性：
   - `level`: 数字，层级（默认 0，范围 0..8）。
 - 行为：创建段落并设置 `numId` 和 `ilvl=level`，再渲染子节点。
@@ -153,7 +201,7 @@
 - 属性：
   - `href`: 目标 URL。
 - 行为：在当前段落创建 `XWPFHyperlinkRun`，文本显示为子节点文本，默认下划线、蓝色。
-- 实现状态：本迭代实现。
+- 实现状态：已实现。
 
 ## <Image>
 - 作用：内联图片。
@@ -168,7 +216,7 @@
   - `maxWidth`: 最大宽度（px）。
   - `maxHeight`: 最大高度（px）。
 - 行为：在当前段落创建 `Run` 并通过 `addPicture()` 插入图片，尺寸使用 `Units.toEMU(width|height)`。
-- 实现状态：本迭代实现（fit contain/scaleDown；maxWidth/maxHeight 支持；读取图片本身尺寸做等比计算）。
+- 实现状态：已实现（fit contain/scaleDown；maxWidth/maxHeight 支持；读取图片本身尺寸做等比计算）。
 
 ---
 
