@@ -1,0 +1,25 @@
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+
+# Maven
+target/
+dependency-reduced-pom.xml
+*.jar
+
+# Debug output folder
+debug-output/
+output/
+output*/
+
+# Generated test artifacts
+test-*.docx
+test-*.zip
+test-*-extracted/
+
+# OS
+.DS_Store
+Thumbs.db
