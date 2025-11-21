@@ -25,6 +25,9 @@ examples-output/
 weekly-report.docx
 weekly-report-with-data.docx
 
+# MCP test outputs
+test-mcp*.docx
+
 # Local development
 local-settings.xml
 

@@ -1,10 +1,10 @@
 # jsx-docx
 
-将 JSX 文档转换为 DOCX。
+将 JSX 文档转换为 DOCX。支持 CLI 命令行和 MCP (Model Context Protocol) 两种模式。
 
-## Java 构建 & Picocli CLI
+## 快速开始
 
-构建 fat jar：
+### 构建项目
 
 ```powershell
 mvn package
@@ -12,7 +12,9 @@ mvn package
 
 生成的文件：`target/jsx-docx-1.0-SNAPSHOT-fat.jar`
 
-运行（Picocli CLI 支持 `-h` 查看帮助）：
+### 使用方式
+
+#### 1. CLI 模式（命令行）
 
 **单文件转换：**
 ```powershell
@@ -34,11 +36,29 @@ java -jar target/jsx-docx-1.0-SNAPSHOT-fat.jar file1.jsx file2.jsx file3.jsx
 java -jar target/jsx-docx-1.0-SNAPSHOT-fat.jar *.jsx -d output --verbose
 ```
 
-主要参数（Java CLI）：
+#### 2. MCP 模式（AI Agent 集成）
+
+**stdio 模式（推荐）：**
+```powershell
+java -jar target/jsx-docx-1.0-SNAPSHOT-fat.jar --mcp-stdio
+```
+
+**服务器模式：**
+```powershell
+java -jar target/jsx-docx-1.0-SNAPSHOT-fat.jar --mcp-server --mcp-port=3000
+```
+
+查看 [MCP 文档](docs/mcp.md) 了解如何配置 Claude Desktop 或其他 MCP 客户端。
+
+## 命令行参数
 
 - `<inputs>...` 一个或多个输入 JSX 文件
 - `-o, --output <file>` 输出文件（仅单文件模式）
 - `-d, --output-dir <dir>` 输出目录（批量模式，使用输入文件名 + .docx）
+- `--data <file>` JSON 数据文件路径（可在 JSX 中通过 `data` 全局变量访问）
+- `--mcp-stdio` 启动 MCP stdio 模式
+- `--mcp-server` 启动 MCP 服务器模式
+- `--mcp-port <port>` MCP 服务器端口（默认 3000）
 - `--verbose` 显示详细过程
 - `-V/--version` 显示版本
 

@@ -1,5 +1,6 @@
 package cn.lihongjie.jsxdocx;
 
+import cn.lihongjie.jsxdocx.mcp.McpServer;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -23,7 +24,7 @@ import java.util.concurrent.Callable;
 )
 public class Main implements Callable<Integer> {
 
-    @Parameters(arity = "1..*", description = "Input JSX file path(s). For batch conversion, provide multiple files.")
+    @Parameters(arity = "0..*", description = "Input JSX file path(s). For batch conversion, provide multiple files.")
     private List<File> inputs;
 
     @Option(names = {"-o", "--output"}, description = "Output DOCX file path (single file mode only). If omitted uses input basename.")
@@ -38,8 +39,31 @@ public class Main implements Callable<Integer> {
     @Option(names = "--verbose", description = "Enable verbose output")
     private boolean verbose;
 
+    @Option(names = {"--mcp", "--mcp-stdio"}, description = "Run in MCP (Model Context Protocol) stdio mode")
+    private boolean mcpStdio;
+
+    @Option(names = "--mcp-server", description = "Run in MCP server mode (HTTP with SSE)")
+    private boolean mcpServer;
+
+    @Option(names = "--mcp-port", description = "Port for MCP server mode (default: 3000)", defaultValue = "3000")
+    private int mcpPort;
+
     @Override
     public Integer call() {
+        // MCP mode takes precedence
+        if (mcpStdio || mcpServer) {
+            return runMcpMode();
+        }
+
+        // Require inputs for normal mode
+        if (inputs == null || inputs.isEmpty()) {
+            System.err.println("Error: No input files specified.");
+            System.err.println("Usage: jsx-docx [OPTIONS] <input-files...>");
+            System.err.println("   or: jsx-docx --mcp-stdio");
+            System.err.println("   or: jsx-docx --mcp-server [--mcp-port=3000]");
+            return 2;
+        }
+
         // Validate options
         if (inputs.size() > 1 && output != null) {
             System.err.println("Error: --output (-o) can only be used with a single input file.");
@@ -138,6 +162,28 @@ public class Main implements Callable<Integer> {
         }
 
         return failureCount > 0 ? 1 : 0;
+    }
+
+    /**
+     * Run MCP (Model Context Protocol) mode
+     */
+    private Integer runMcpMode() {
+        if (mcpStdio) {
+            if (verbose) {
+                System.err.println("Starting MCP stdio mode...");
+            }
+            McpServer server = new McpServer();
+            server.runStdioMode();
+            return 0;
+        } else if (mcpServer) {
+            if (verbose) {
+                System.err.println("Starting MCP server mode on port " + mcpPort + "...");
+            }
+            McpServer server = new McpServer();
+            server.runServerMode(mcpPort);
+            return 0;
+        }
+        return 0;
     }
 
     /**

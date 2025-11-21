@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "jsx-docx": {
+      "command": "java",
+      "args": [
+        "-jar",
+        "target/jsx-docx-1.0-SNAPSHOT-fat.jar",
+        "--mcp-stdio"
+      ]
+    }
+  }
+}
