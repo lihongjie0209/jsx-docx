@@ -4,6 +4,7 @@ import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.File;
 import java.io.IOException;
@@ -11,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 
 @Command(
@@ -30,6 +32,9 @@ public class Main implements Callable<Integer> {
     @Option(names = {"-d", "--output-dir"}, description = "Output directory for batch mode. Files use input basename + .docx extension.")
     private File outputDir;
 
+    @Option(names = {"--data"}, description = "Path to JSON file to use as data context in JSX (accessible as 'data' global variable)")
+    private File dataFile;
+
     @Option(names = "--verbose", description = "Enable verbose output")
     private boolean verbose;
 
@@ -40,6 +45,20 @@ public class Main implements Callable<Integer> {
             System.err.println("Error: --output (-o) can only be used with a single input file.");
             System.err.println("For batch mode, use --output-dir (-d) instead.");
             return 4;
+        }
+
+        // Load data context if provided
+        Map<String, Object> dataContext = null;
+        if (dataFile != null) {
+            try {
+                dataContext = loadJsonFile(dataFile);
+                if (verbose) {
+                    System.out.println("Loaded data context from: " + dataFile.getAbsolutePath());
+                }
+            } catch (Exception e) {
+                System.err.println("Error loading data file: " + e.getMessage());
+                return 3;
+            }
         }
 
         if (inputs.size() > 1 && verbose) {
@@ -92,7 +111,7 @@ public class Main implements Callable<Integer> {
                     System.out.println("[" + input.getName() + "] Executing JS runtime...");
                 }
                 JsRuntime runtime = new JsRuntime();
-                var vDom = runtime.run(jsCode);
+                var vDom = runtime.run(jsCode, dataContext);
                 
                 if (verbose) {
                     System.out.println("[" + input.getName() + "] Rendering DOCX to " + outFile.getAbsolutePath());
@@ -119,6 +138,14 @@ public class Main implements Callable<Integer> {
         }
 
         return failureCount > 0 ? 1 : 0;
+    }
+
+    /**
+     * Load JSON file and return as Map<String, Object>
+     */
+    private Map<String, Object> loadJsonFile(File file) throws IOException {
+        ObjectMapper mapper = new ObjectMapper();
+        return mapper.readValue(file, Map.class);
     }
 
     public static void main(String[] args) {

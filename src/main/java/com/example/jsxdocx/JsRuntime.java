@@ -12,7 +12,13 @@ import java.util.*;
 
 public class JsRuntime {
 
-    public VNode run(String compiledJs) throws Exception {
+    /**
+     * Execute compiled JSX with optional data context
+     * @param compiledJs compiled JavaScript from JSX
+     * @param data optional Map to expose as global 'data' object in JSX context
+     * @return VNode tree
+     */
+    public VNode run(String compiledJs, Map<String, Object> data) throws Exception {
         try (Context context = Context.newBuilder("js")
             .option("engine.WarnInterpreterOnly", "false")
             .build()) {
@@ -21,6 +27,12 @@ public class JsRuntime {
                     Objects.requireNonNull(getClass().getResourceAsStream("/runtime.js")),
                     StandardCharsets.UTF_8)) {
                 context.eval(Source.newBuilder("js", reader, "runtime.js").build());
+            }
+
+            // 1.5. Expose data context if provided
+            if (data != null) {
+                Value dataValue = mapToJsValue(context, data);
+                context.getBindings("js").putMember("data", dataValue);
             }
 
             // 2. Run the compiled user code
@@ -41,6 +53,132 @@ public class JsRuntime {
             // 4. Convert to a detached Java object tree so we can safely close the context
             return toVNode(result);
         }
+    }
+
+    /**
+     * Execute compiled JSX without data context (backward compatible)
+     */
+    public VNode run(String compiledJs) throws Exception {
+        return run(compiledJs, null);
+    }
+
+    /**
+     * Convert Java Map to GraalVM JS object
+     */
+    private Value mapToJsValue(Context context, Object obj) throws Exception {
+        if (obj == null) return context.eval("js", "null");
+        if (obj instanceof String) return context.eval("js", "'" + escapeJsString((String) obj) + "'");
+        if (obj instanceof Boolean) return context.eval("js", obj.toString());
+        if (obj instanceof Number) return context.eval("js", obj.toString());
+        
+        if (obj instanceof Map) {
+            Map<String, Object> map = (Map<String, Object>) obj;
+            StringBuilder sb = new StringBuilder("({");
+            boolean first = true;
+            for (Map.Entry<String, Object> entry : map.entrySet()) {
+                if (!first) sb.append(", ");
+                first = false;
+                sb.append(entry.getKey()).append(": ");
+                
+                Object value = entry.getValue();
+                if (value instanceof String) {
+                    sb.append("'").append(escapeJsString((String) value)).append("'");
+                } else if (value instanceof Map) {
+                    // Nested objects will be handled recursively
+                    sb.append(mapToJsString((Map<String, Object>) value));
+                } else if (value instanceof List) {
+                    sb.append(listToJsString((List<?>) value));
+                } else if (value instanceof Boolean || value instanceof Number) {
+                    sb.append(value);
+                } else {
+                    sb.append("'").append(escapeJsString(value.toString())).append("'");
+                }
+            }
+            sb.append("})");
+            return context.eval("js", sb.toString());
+        }
+        
+        if (obj instanceof List) {
+            List<?> list = (List<?>) obj;
+            StringBuilder sb = new StringBuilder("[");
+            boolean first = true;
+            for (Object item : list) {
+                if (!first) sb.append(", ");
+                first = false;
+                
+                if (item instanceof String) {
+                    sb.append("'").append(escapeJsString((String) item)).append("'");
+                } else if (item instanceof Map) {
+                    sb.append(mapToJsString((Map<String, Object>) item));
+                } else if (item instanceof List) {
+                    sb.append(listToJsString((List<?>) item));
+                } else if (item instanceof Boolean || item instanceof Number) {
+                    sb.append(item);
+                } else {
+                    sb.append("'").append(escapeJsString(item.toString())).append("'");
+                }
+            }
+            sb.append("]");
+            return context.eval("js", sb.toString());
+        }
+        
+        return context.eval("js", "'" + escapeJsString(obj.toString()) + "'");
+    }
+
+    private String mapToJsString(Map<String, Object> map) {
+        StringBuilder sb = new StringBuilder("({");
+        boolean first = true;
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            if (!first) sb.append(", ");
+            first = false;
+            sb.append(entry.getKey()).append(": ");
+            
+            Object value = entry.getValue();
+            if (value instanceof String) {
+                sb.append("'").append(escapeJsString((String) value)).append("'");
+            } else if (value instanceof Map) {
+                sb.append(mapToJsString((Map<String, Object>) value));
+            } else if (value instanceof List) {
+                sb.append(listToJsString((List<?>) value));
+            } else if (value instanceof Boolean || value instanceof Number) {
+                sb.append(value);
+            } else {
+                sb.append("'").append(escapeJsString(value.toString())).append("'");
+            }
+        }
+        sb.append("})");
+        return sb.toString();
+    }
+
+    private String listToJsString(List<?> list) {
+        StringBuilder sb = new StringBuilder("[");
+        boolean first = true;
+        for (Object item : list) {
+            if (!first) sb.append(", ");
+            first = false;
+            
+            if (item instanceof String) {
+                sb.append("'").append(escapeJsString((String) item)).append("'");
+            } else if (item instanceof Map) {
+                sb.append(mapToJsString((Map<String, Object>) item));
+            } else if (item instanceof List) {
+                sb.append(listToJsString((List<?>) item));
+            } else if (item instanceof Boolean || item instanceof Number) {
+                sb.append(item);
+            } else {
+                sb.append("'").append(escapeJsString(item.toString())).append("'");
+            }
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    private String escapeJsString(String str) {
+        return str.replace("\\", "\\\\")
+                  .replace("'", "\\'")
+                  .replace("\n", "\\n")
+                  .replace("\r", "\\r")
+                  .replace("\t", "\\t");
     }
 
     private VNode toVNode(Value value) {
