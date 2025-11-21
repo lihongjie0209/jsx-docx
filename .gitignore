@@ -19,7 +19,12 @@ output*/
 test-*.docx
 test-*.zip
 test-*-extracted/
+examples-output/
+
+# Local development
+local-settings.xml
 
 # OS
 .DS_Store
 Thumbs.db
+~$*.docx
