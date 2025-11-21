@@ -8,6 +8,10 @@ JSX 代码可以访问全局 `data` 对象，该对象包含运行时传递的�
 
 ### 程序调用
 ```java
+import cn.lihongjie.jsxdocx.JsRuntime;
+import java.util.HashMap;
+import java.util.Map;
+
 Map<String, Object> data = new HashMap<>();
 data.put("title", "My Document");
 data.put("author", "John Doe");
@@ -44,18 +48,73 @@ java -jar jsx-docx.jar template.jsx --data context.json -o output.docx
 ---
 
 ## 公共约定
- - 子节点：`<Section>`、`<Paragraph>`、`<Heading>`、`<Table>`、`<PageBreak>`、`<Image>`、`<Link>`、`<BulletedList>`、`<NumberedList>`、`<Header>`、`<Footer>`、纯文本。
+ - 子节点：`<Styles>`、`<Section>`、`<Paragraph>`、`<Heading>`、`<Table>`、`<PageBreak>`、`<Image>`、`<Link>`、`<BulletedList>`、`<NumberedList>`、`<Header>`、`<Footer>`、纯文本。
 - 文本节点：字符串会渲染为段落或文字的文本内容。
 - 颜色：统一使用 `#RRGGBB`，渲染时自动去掉 `#`。
+- 样式引用：多数组件支持 `styleId` 属性引用在 `<Styles>` 中定义的样式。
 
   - `orientation`: `"portrait" | "landscape"`（页面方向）。
 ## <Document>
 - 属性：无。
-- 行为：创建 XWPFDocument；非 `<Section>` 的子节点在默认节中渲染。
+- 子节点：`<Styles>`（可选，唯一）、`<Section>`、`<Paragraph>`、`<Heading>`、`<Table>`、`<PageBreak>`、`<Image>`、`<Link>`、`<BulletedList>`、`<NumberedList>`、`<Header>`、`<Footer>`、纯文本。
+- 行为：创建 XWPFDocument；`<Styles>` 组件会生成文档样式定义；非 `<Section>` 的子节点在默认节中渲染。
+## <Styles>
+- 作用：定义文档样式（必须在 `<Document>` 的第一个子节点位置）。
+- 子节点：`<Style>`（一个或多个样式定义）。
+- 属性：无。
+- 行为：生成 Word 样式定义（styles.xml），包含 docDefaults 和所有 `<Style>` 子节点定义的样式。
+- 实现状态：已实现。
+
+## <Style>
+- 作用：单个样式定义（仅在 `<Styles>` 内使用）。
+- 子节点：无。
+- 属性：
+  - `styleId`: 字符串，样式唯一标识符（必需），其他组件通过此 ID 引用样式。
+  - `name`: 字符串，样式显示名称（默认同 `styleId`）。
+  - `type`: `"paragraph" | "character" | "table"`，样式类型（默认 `paragraph`）。
+  - `basedOn`: 字符串，基于的样式 ID（可选）。
+  - **段落属性**（仅 `type="paragraph"` 时生效）：
+    - `outlineLevel`: 整数 0..8，大纲级别（用于标题）。
+    - `keepNext`: 布尔，与下一段保持在同一页。
+    - `keepLines`: 布尔，段落不分页。
+    - `spacingBefore`: 整数，段前间距（twips）。
+    - `spacingAfter`: 整数，段后间距（twips）。
+    - `lineSpacing`: 整数，行间距（twips）。
+  - **文字属性**（对 `paragraph` 和 `character` 类型生效）：
+    - `bold`: 布尔，粗体。
+    - `italic`: 布尔，斜体。
+    - `fontSize`: 整数，字号（半点，如 44 = 22pt）。
+    - `color`: 字符串，文字颜色 `#RRGGBB`。
+    - `fontFamily`: 字符串，字体名称（如 `"Arial"`）。
+- 行为：在 styles.xml 中创建样式定义，设置指定的格式属性。
+- 示例：
+```jsx
+<Styles>
+  <Style 
+    styleId="Heading1" 
+    name="My Heading 1"
+    type="paragraph"
+    outlineLevel={0}
+    bold={true}
+    fontSize={44}
+    color="#0066CC"
+  />
+  <Style 
+    styleId="Highlight" 
+    name="Highlight Text"
+    type="character"
+    bold={true}
+    color="#FF6600"
+  />
+</Styles>
+```
+- 实现状态：已实现。
+
  - 属性：
    - `type`: `"default" | "first" | "even" | "odd"`，其中 `odd` 等价于默认页眉（在启用奇偶页区分时用于奇数页）。
  - 行为：根据 `type` 创建对应页眉。`first` 会启用 `titlePg`；`even`/`odd` 会启用奇偶页页眉设置。可在页眉段落中使用 `<PageNumber>`。
 - 属性：
+  - `styleId`: 字符串，引用 `<Styles>` 中定义的段落样式 ID（可选）。
   - `align`: `"left" | "center" | "right" | "both"`。
  - 属性：
    - `type`: `"default" | "first" | "even" | "odd"`，含义同 `<Header>`。
@@ -70,6 +129,8 @@ java -jar jsx-docx.jar template.jsx --data context.json -o output.docx
     - `indent`: `{ left: pt, hanging: pt }` 段落缩进（左缩进与悬挂缩进，单位 pt）。
 
 ## <Text>
+- 属性：
+  - `styleId`: 字符串，引用 `<Styles>` 中定义的字符样式 ID（可选）。样式引用优先于直接属性。
   - `bold`: 布尔，加粗。
   - `italic`: 布尔，斜体。
   - `size`: 整数磅。
@@ -78,15 +139,32 @@ java -jar jsx-docx.jar template.jsx --data context.json -o output.docx
   - `strike`: 布尔，删除线。
   - `highlight`: 字符串，高亮颜色（Word 预设名），如 `"yellow"`, `"green"`, `"cyan"` 等。
   - `font`: 字体族名称（如 `"Arial"`）。
+- 行为：创建 Run 并应用样式（若指定 `styleId`）或直接属性，渲染文本内容。直接属性会覆盖样式定义。
+- 示例：
+```jsx
+<Text styleId="Highlight">高亮文本</Text>
+<Text styleId="CodeText" underline={true}>带下划线的代码</Text>
+```
+- 实现状态：已实现。
 
 ## <Heading>
-  - `level`: 整数 `1..6`，映射样式 `Heading{level}`。
-- 行为：创建段落并设置样式 `Heading{level}`，渲染子节点。
-- 实现状态：已实现。
+- 属性：
+  - `styleId`: 字符串，引用 `<Styles>` 中定义的段落样式 ID（必需，替代原 `level` 属性）。
+- 行为：创建段落并设置样式引用，渲染子节点。
+- 示例：
+```jsx
+<Styles>
+  <Style styleId="H1" name="Heading 1" outlineLevel={0} bold={true} fontSize={44}/>
+</Styles>
+<Heading styleId="H1"><Text>章节标题</Text></Heading>
+```
+- 实现状态：已实现（不再支持 `level` 属性，必须通过 `styleId` 引用样式）。
 ## <Table>
 - 子节点：`<Row>`。
 - 属性：
-- 行为：创建表格并移除默认首行；根据属性设置表格边框、宽度（百分比使用 PCT，`100%`=5000）、对齐；渲染行。
+  - `styleId`: 字符串，引用 `<Styles>` 中定义的表格样式 ID（可选）。
+- 行为：创建表格并移除默认首行；应用样式引用（若指定）；根据属性设置表格边框、宽度（百分比使用 PCT，`100%`=5000）、对齐；渲染行。
+- 实现状态：已实现（含样式支持）。
 ## <PageNumber>
 - 作用：页码域（可用于任何段落，包括正文/页眉/页脚）。
 - 子节点：无。
@@ -106,6 +184,7 @@ java -jar jsx-docx.jar template.jsx --data context.json -o output.docx
 - 作用：表格单元格。
 - 子节点：块级组件或 `<Paragraph>`。
 - 属性：
+  - `styleId`: 字符串，引用 `<Styles>` 中定义的段落样式 ID（可选）。样式会应用到单元格的第一个段落。
   - `vAlign`: `"top" | "center" | "bottom"`（垂直对齐）。
   - `padding`: 对象，单位为磅（pt），字段：`top`, `bottom`, `left`, `right`（缺省字段保持默认）。
   - `width`: 宽度。支持百分比字符串（如 `"70%"`，PCT 模式）或数字（磅 pt，DXA 模式）。
@@ -113,8 +192,8 @@ java -jar jsx-docx.jar template.jsx --data context.json -o output.docx
   - `border`: 布尔或对象。布尔 `false` 关闭四边边框；对象形如 `{ size: 1, color: "#RRGGBB", sides: ["top","right","bottom","left"] }`，其中 `size` 为磅（pt），`sides` 省略表示四边。
   - `colspan`: 列合并，整数 ≥ 1（默认 1）。
   - `rowspan`: 行合并，整数 ≥ 1（默认 1）。
-- 行为：创建单元格，应用垂直对齐与内边距（pt → twips，写入 `tcPr.vAlign` 与 `tcPr.tcMar`），再渲染子节点（段落会追加）。
-- 实现状态：`vAlign`、`padding` 已实现；`width` 已实现；`background` 本迭代实现。
+- 行为：创建单元格，应用样式引用（若指定）到第一个段落，应用垂直对齐与内边距（pt → twips，写入 `tcPr.vAlign` 与 `tcPr.tcMar`），再渲染子节点（段落会追加）。
+- 实现状态：`vAlign`、`padding`、`width`、`background`、`styleId` 已实现。
 
 合并行为说明：
 - `colspan` 通过 `tcPr.gridSpan` 生效；`rowspan` 通过 `tcPr.vMerge` 生效，首个单元格为 `restart`，下方连续行自动插入 `continue` 单元格以保持表格网格一致。
@@ -126,6 +205,42 @@ java -jar jsx-docx.jar template.jsx --data context.json -o output.docx
 - 属性：无。
 - 行为：插入分页段落。
 - 实现状态：已实现。
+
+## <Toc>
+- 作用：插入目录（Table of Contents），使用 Word TOC 域。
+- 子节点：无。
+- 属性：
+  - `title`: 字符串，目录标题（可选，默认 `"目录"`）。
+  - `maxLevel`: 整数，显示的最大标题级别（1..9，默认 `3`）。对应 TOC 域的 `\o "1-maxLevel"`。
+  - `hyperlink`: 布尔，目录项是否作为超链接（默认 `true`）。对应 TOC 域的 `\h` 开关。
+  - `showPageNumbers`: 布尔，是否显示页码（默认 `true`）。设为 `false` 时使用 `\n` 开关省略页码。
+- 行为：
+  - 若设置 `title`，先创建标题段落
+  - 创建包含 TOC 域的段落，域结构：
+    - `fldChar type="begin"`：域开始
+    - `instrText`：域指令，如 `"TOC \o \"1-3\" \h \z \u"`
+    - `fldChar type="separate"`：分隔符
+    - 占位符文本：`"右键点击此处选择\"更新域\"以生成目录"`
+    - `fldChar type="end"`：域结束
+  - TOC 域依赖文档中段落样式的 `outlineLevel` 属性（在 `<Style>` 中定义）
+  - **自动更新**：系统自动在 `settings.xml` 中启用 `<w:updateFields/>` 设置，使文档在 Word 中打开时自动更新所有域（包括 TOC）
+  - 目录包含：标题文本、页码、超链接（可跳转到对应标题）
+  - 手动更新：也可以右键点击目录区域选择"更新域"（或按 F9）手动刷新
+- 示例：
+```jsx
+<Styles>
+  <Style styleId="H1" outlineLevel={0} bold={true} fontSize={44}/>
+  <Style styleId="H2" outlineLevel={1} bold={true} fontSize={36}/>
+  <Style styleId="H3" outlineLevel={2} bold={true} fontSize={28}/>
+</Styles>
+
+<Toc title="目录" maxLevel={3} />
+
+<Heading styleId="H1"><Text>第一章 简介</Text></Heading>
+<Heading styleId="H2"><Text>1.1 背景</Text></Heading>
+<Heading styleId="H3"><Text>1.1.1 历史</Text></Heading>
+```
+- 实现状态：本迭代实现。
 
 ## <BulletedList>
 - 子节点：`<ListItem>`。
@@ -166,6 +281,55 @@ java -jar jsx-docx.jar template.jsx --data context.json -o output.docx
 - 子节点：无。
 - 行为：在当前段落插入 `w:tab`。
 - 实现状态：已实现。
+
+## <Include>
+- 作用：在文档中包含外部 JSX 文件的内容，实现组件复用。
+- 子节点：无（外部文件的内容会被插入到当前位置）。
+- 属性：
+  - `path`: 字符串，必需。要包含的 JSX 文件路径，支持相对路径（相对于当前文档所在目录）。
+    - 相对路径示例：`"./components/header.jsx"`、`"../shared/footer.jsx"`
+    - 路径会使用当前文档的父目录作为基准进行解析
+- 行为：
+  - 在渲染阶段读取指定的 JSX 文件
+  - 使用 Compiler 编译 JSX 为 JavaScript
+  - 使用 JsRuntime 执行生成 VNode 树
+  - 将生成的内容渲染到当前父节点（如果包含文件的根是 `<Document>`，则跳过根节点只渲染其子节点）
+  - 包含的文件可以访问与主文档相同的 `data` 对象（数据上下文共享）
+  - 支持嵌套包含（包含的文件中也可以使用 `<Include>`）
+  - 自动检测循环包含并抛出 `IllegalStateException`（如 A 包含 B，B 包含 A）
+  - 包含的文件路径解析是相对于**包含它的文件**的位置，而非主文档位置
+- 错误处理：
+  - 缺少 `path` 属性：打印错误信息到 stderr，跳过该组件
+  - 文件不存在：打印错误信息到 stderr，跳过该组件，继续渲染
+  - 循环包含：抛出 `IllegalStateException` 并显示完整包含链（如 "a.jsx → b.jsx → a.jsx"）
+  - 编译或执行错误：打印错误信息到 stderr，跳过该组件
+- 示例：
+```jsx
+// components/header.jsx
+<Document>
+  <Paragraph align="CENTER" bold="true" fontSize="16">
+    <Text>公司名称</Text>
+  </Paragraph>
+  <Paragraph align="CENTER" fontSize="10">
+    <Text>地址信息</Text>
+  </Paragraph>
+</Document>
+
+// main.jsx
+render(
+  <Document>
+    <Include path="./components/header.jsx" />
+    <Paragraph><Text>主文档内容</Text></Paragraph>
+    <Include path="./components/footer.jsx" />
+  </Document>
+);
+```
+- 使用场景：
+  - 页眉/页脚复用
+  - 多文档共享的公司信息、免责声明等
+  - 表格模板、样式定义的复用
+  - 大型文档的模块化组织
+- 实现状态：已实现（支持相对路径、嵌套包含、循环检测、数据上下文共享）。
 
 ## <Header>
 - 作用：文档页眉区域内容。
@@ -213,12 +377,41 @@ java -jar jsx-docx.jar template.jsx --data context.json -o output.docx
 
 ---
 
+## 样式系统说明
+
+### 样式引用机制
+- 组件通过 `styleId` 属性引用在 `<Styles>` 中定义的样式
+- 样式引用优先应用，直接属性会覆盖样式定义
+- 支持三种样式类型：
+  - `paragraph`: 用于段落级组件（`<Paragraph>`、`<Heading>`、`<Cell>` 内容）
+  - `character`: 用于文本级组件（`<Text>`）
+  - `table`: 用于表格组件（`<Table>`）
+
+### 样式组合
+可以将样式引用与直接属性组合使用：
+```jsx
+<Paragraph styleId="Quote" align="CENTER">
+  <Text styleId="Highlight" underline={true}>组合样式示例</Text>
+</Paragraph>
+```
+
+### 支持 styleId 的组件
+- `<Paragraph>`: 段落样式（type="paragraph"）
+- `<Text>`: 字符样式（type="character"）
+- `<Heading>`: 段落样式（type="paragraph"，通常带 outlineLevel）
+- `<Table>`: 表格样式（type="table"）
+- `<Cell>`: 段落样式（应用到单元格第一个段落）
+
 ## 错误与校验
 - 根节点必须为 `<Document>`，否则抛出 `IllegalArgumentException`。
+- `<Styles>` 必须是 `<Document>` 的第一个子节点（如果存在）。
+- `<Style>` 缺少 `styleId` 时会输出警告并跳过该样式定义。
+- 组件引用不存在的 `styleId` 时，Word 会使用默认格式（无错误）。
 - `<Link>` 缺少 `href` 时忽略为普通文本；`<Image>` 无法读取 `src` 时忽略插入并继续渲染。
 - 未识别组件：记录到 `stderr` 并继续。
 
 ## 未来扩展（不在本迭代）
-- 段落/表格对齐与间距、行高、边框与样式。
-- 主题色与样式模板绑定。
-- 脚注/尾注、奇偶页与首页页眉页脚、按层级控制的列表缩进与文本格式、样式模板等。
+- 更多样式属性（边框、阴影、字符间距等）
+- 样式继承链（basedOn 的完整支持）
+- 主题色与样式模板绑定
+- 脚注/尾注、条件格式等

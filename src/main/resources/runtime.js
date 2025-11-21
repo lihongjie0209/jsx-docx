@@ -22,6 +22,10 @@ const Footer = 'footer';
 const PageNumber = 'pagenumber';
 const Br = 'br';
 const Tab = 'tab';
+const Styles = 'styles';
+const Style = 'style';
+const Toc = 'toc';
+const Include = 'include';
 
 // 2. JSX runtime implementations
 // Classic: React.createElement(...)

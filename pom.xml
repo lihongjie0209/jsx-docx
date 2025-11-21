@@ -3,7 +3,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.example</groupId>
+    <groupId>cn.lihongjie</groupId>
     <artifactId>jsx-docx</artifactId>
     <version>1.0-SNAPSHOT</version>
 
@@ -123,7 +123,7 @@
                             <shadedClassifierName>fat</shadedClassifierName>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>com.example.jsxdocx.Main</mainClass>
+                                    <mainClass>cn.lihongjie.jsxdocx.Main</mainClass>
                                 </transformer>
                             </transformers>
                         </configuration>
