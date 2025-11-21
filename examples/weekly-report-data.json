@@ -1,0 +1,27 @@
+{
+  "title": "AI 研发组周报",
+  "author": "李工",
+  "date": "2025-11-20",
+  "highlights": [
+    "完成模型量化",
+    "推理延迟降低 30%",
+    "发布 v2.0 Beta"
+  ],
+  "metrics": [
+    {
+      "name": "准确率",
+      "val": "98.5%",
+      "trend": "up"
+    },
+    {
+      "name": "QPS",
+      "val": "150",
+      "trend": "up"
+    },
+    {
+      "name": "平均耗时",
+      "val": "45ms",
+      "trend": "down"
+    }
+  ]
+}

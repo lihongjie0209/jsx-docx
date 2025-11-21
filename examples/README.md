@@ -31,6 +31,40 @@ JavaScript 逻辑演示：
 - 演示数组映射的最小用例
 - 无额外 Section 包装的列表
 
+### weekly-report.jsx
+动态项目周报示例（展示 JSX + JS 的强大能力）：
+- **样式系统**：通过 `<Styles>` 定义可复用的段落样式
+- **页眉页脚**：专业的文档标识和页码
+- **动态列表**：使用 `.map()` 从数据生成项目符号列表
+- **动态表格**：根据数据动态生成表格行，支持条件渲染（颜色根据趋势变化）
+- **数据驱动**：支持通过 `--data` 参数注入 JSON 数据
+
+**使用方式：**
+```powershell
+# 使用内置默认数据
+java -jar ../target/jsx-docx-1.0-SNAPSHOT-fat.jar weekly-report.jsx -o report.docx
+
+# 使用外部 JSON 数据文件
+java -jar ../target/jsx-docx-1.0-SNAPSHOT-fat.jar weekly-report.jsx --data weekly-report-data.json -o report.docx
+```
+
+### 样式系统示例
+- **test-simple-styles.jsx**: 基础样式定义和使用
+- **test-custom-styles.jsx**: 自定义样式与直接属性组合
+- **test-all-styles.jsx**: 完整的样式系统演示
+- **test-multi-level-headings.jsx**: 多级标题样式
+
+### 目录功能
+- **test-toc.jsx**: Word 目录 (TOC) 自动生成和更新
+
+### 组件复用
+- **with-include.jsx**: 使用 `<Include>` 组件包含外部文件
+- **nested-include.jsx**: 嵌套包含示例
+- **components/**: 可复用的组件目录
+  - **header.jsx**: 公司页眉
+  - **footer.jsx**: 页脚免责声明
+  - **section-with-header.jsx**: 带页眉的章节
+
 ## 运行示例
 
 **单个文件：**
