@@ -134,6 +134,36 @@ java -jar target/jsx-docx-1.0-SNAPSHOT-fat.jar examples/test.jsx
 java -jar target/jsx-docx-1.0-SNAPSHOT-fat.jar examples/*.jsx -d output
 ```
 
+## MCP (Model Context Protocol) 支持
+
+jsx-docx 支持通过 MCP 协议与 AI Agent（如 Claude）集成，允许 AI 直接生成 Word 文档。
+
+### 快速开始
+
+1. **配置 Claude Desktop**（参见 [MCP 快速入门](MCP-QUICKSTART.md)）
+2. **启动 MCP 服务器**：
+   ```powershell
+   java -jar target/jsx-docx-1.0-SNAPSHOT-fat.jar --mcp-stdio
+   ```
+3. **在 Claude 中使用**：
+   > "用 jsx-docx 生成一个周报，标题是本周工作总结，包含3个要点"
+
+### 文档资源
+
+- 📖 [MCP 快速入门指南](MCP-QUICKSTART.md) - 中文快速配置和使用说明
+- 📘 [完整 MCP 文档](docs/mcp.md) - 详细的 API 和协议说明
+- 💡 [MCP 使用示例](examples/mcp-examples.md) - 各种场景的 JSON-RPC 请求示例
+
+### 测试脚本
+
+```bash
+# Python 测试脚本（自动化测试）
+python test-mcp.py
+
+# 命令行手动测试
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | java -jar target/jsx-docx-1.0-SNAPSHOT-fat.jar --mcp-stdio
+```
+
 ## Python Click CLI（可选，已弃用）
 
 提供一个使用 Click 的包装脚本（不再推荐使用，直接使用 Java CLI 即可）。
