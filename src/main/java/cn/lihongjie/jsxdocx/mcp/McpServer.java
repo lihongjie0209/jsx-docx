@@ -114,11 +114,28 @@ public class McpServer {
     private JsonNode handleToolsList(JsonNode id) {
         ArrayNode tools = mapper.createArrayNode();
         
-        // Tool: generate_docx
-        ObjectNode tool = mapper.createObjectNode();
-        tool.put("name", "generate_docx");
-        tool.put("description", "Generate a Word document (.docx) from JSX code. " +
-                "Supports all Word features including styles, tables, lists, images, headers/footers, TOC, etc.");
+        // Tool 1: get_component_spec
+        ObjectNode specTool = mapper.createObjectNode();
+        specTool.put("name", "get_component_spec");
+        specTool.put("description", "Get the complete jsx-docx component specification and syntax reference. " +
+                "IMPORTANT: Call this tool FIRST before generating any documents to understand available components, " +
+                "their properties, and correct JSX syntax. The spec includes: Document structure, Styles system, " +
+                "Text formatting, Tables, Lists, Images, Headers/Footers, TOC, and all component properties.");
+        
+        ObjectNode specSchema = mapper.createObjectNode();
+        specSchema.put("type", "object");
+        specSchema.set("properties", mapper.createObjectNode());
+        specSchema.set("required", mapper.createArrayNode());
+        
+        specTool.set("inputSchema", specSchema);
+        tools.add(specTool);
+        
+        // Tool 2: generate_docx
+        ObjectNode docTool = mapper.createObjectNode();
+        docTool.put("name", "generate_docx");
+        docTool.put("description", "Generate a Word document (.docx) from JSX code. " +
+                "Supports all Word features including styles, tables, lists, images, headers/footers, TOC, etc. " +
+                "RECOMMENDED: Call get_component_spec first to understand the correct syntax and available components.");
         
         ObjectNode inputSchema = mapper.createObjectNode();
         inputSchema.put("type", "object");
@@ -147,8 +164,8 @@ public class McpServer {
         required.add("outputPath");
         inputSchema.set("required", required);
         
-        tool.set("inputSchema", inputSchema);
-        tools.add(tool);
+        docTool.set("inputSchema", inputSchema);
+        tools.add(docTool);
 
         ObjectNode result = mapper.createObjectNode();
         result.set("tools", tools);
@@ -160,11 +177,71 @@ public class McpServer {
         String toolName = params.get("name").asText();
         JsonNode arguments = params.get("arguments");
 
-        if ("generate_docx".equals(toolName)) {
-            return handleGenerateDocx(id, arguments);
-        }
+        return switch (toolName) {
+            case "get_component_spec" -> handleGetComponentSpec(id);
+            case "generate_docx" -> handleGenerateDocx(id, arguments);
+            default -> createErrorResponse(id, -32602, "Unknown tool: " + toolName);
+        };
+    }
 
-        return createErrorResponse(id, -32602, "Unknown tool: " + toolName);
+    private JsonNode handleGetComponentSpec(JsonNode id) {
+        try {
+            // Read spec.md from resources or file system
+            String specContent;
+            
+            // Try to read from file system first (for development)
+            Path specPath = Paths.get("docs/spec.md");
+            if (Files.exists(specPath)) {
+                specContent = Files.readString(specPath);
+            } else {
+                // Fallback to classpath resource (for packaged JAR)
+                InputStream specStream = getClass().getClassLoader().getResourceAsStream("spec.md");
+                if (specStream != null) {
+                    specContent = new String(specStream.readAllBytes());
+                } else {
+                    // If not found, return a helpful error
+                    ArrayNode content = mapper.createArrayNode();
+                    ObjectNode textContent = mapper.createObjectNode();
+                    textContent.put("type", "text");
+                    textContent.put("text", "Component specification not found. Please refer to: https://github.com/lihongjie0209/jsx-docx/blob/main/docs/spec.md");
+                    content.add(textContent);
+
+                    ObjectNode result = mapper.createObjectNode();
+                    result.set("content", content);
+                    result.put("isError", true);
+
+                    return createSuccessResponse(id, result);
+                }
+            }
+
+            // Success response with spec content
+            ArrayNode content = mapper.createArrayNode();
+            ObjectNode textContent = mapper.createObjectNode();
+            textContent.put("type", "text");
+            textContent.put("text", "# jsx-docx Component Specification\n\n" + specContent + 
+                    "\n\n---\n\n**Usage Tip**: Use this specification to understand all available components " +
+                    "and their properties before writing JSX code. All components must follow the syntax defined here.");
+            content.add(textContent);
+
+            ObjectNode result = mapper.createObjectNode();
+            result.set("content", content);
+            result.put("isError", false);
+
+            return createSuccessResponse(id, result);
+
+        } catch (Exception e) {
+            ArrayNode content = mapper.createArrayNode();
+            ObjectNode textContent = mapper.createObjectNode();
+            textContent.put("type", "text");
+            textContent.put("text", "Error reading component specification: " + e.getMessage());
+            content.add(textContent);
+
+            ObjectNode result = mapper.createObjectNode();
+            result.set("content", content);
+            result.put("isError", true);
+
+            return createSuccessResponse(id, result);
+        }
     }
 
     private JsonNode handleGenerateDocx(JsonNode id, JsonNode arguments) {

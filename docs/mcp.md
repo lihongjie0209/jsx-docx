@@ -52,9 +52,59 @@ For Claude Desktop or other MCP clients, add to your MCP settings file:
 
 ## Available Tools
 
+### `get_component_spec`
+
+Get the complete jsx-docx component specification and syntax reference.
+
+**IMPORTANT**: Call this tool FIRST before generating any documents to understand available components, their properties, and correct JSX syntax.
+
+**Parameters:** None
+
+**Returns:** The complete specification document including:
+- Document structure components
+- Styles system
+- Text formatting options
+- Tables, Lists, Images
+- Headers/Footers, TOC
+- All component properties and usage examples
+
+**Example Request:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "get_component_spec",
+    "arguments": {}
+  }
+}
+```
+
+**Example Response:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "# jsx-docx Component Specification\n\n## <Document>\n- 属性：无。\n- 子节点：...\n\n[Full specification content]\n\n**Usage Tip**: Use this specification to understand all available components..."
+      }
+    ],
+    "isError": false
+  }
+}
+```
+
 ### `generate_docx`
 
 Generate a Word document from JSX code.
+
+**RECOMMENDED**: Call `get_component_spec` first to understand the correct syntax and available components.
 
 **Parameters:**
 
@@ -130,8 +180,11 @@ java -jar target/jsx-docx-1.0-SNAPSHOT-fat.jar --mcp-stdio
 # List tools
 {"jsonrpc":"2.0","id":2,"method":"tools/list"}
 
+# Get component specification
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_component_spec","arguments":{}}}
+
 # Generate a document
-{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"generate_docx","arguments":{"jsxCode":"<Document><Section><Paragraph><Text>Hello MCP!</Text></Paragraph></Section></Document>","outputPath":"test-mcp.docx"}}}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"generate_docx","arguments":{"jsxCode":"<Document><Section><Paragraph><Text>Hello MCP!</Text></Paragraph></Section></Document>","outputPath":"test-mcp.docx"}}}
 ```
 
 ## JSX Code Examples
@@ -209,7 +262,7 @@ All jsx-docx components are supported in MCP mode. Here are some examples:
 
 - Server mode (HTTP/SSE) is not yet implemented
 - Resources and prompts capabilities are not implemented
-- Only the `generate_docx` tool is available
+- Two tools are available: `get_component_spec` and `generate_docx`
 
 ## Troubleshooting
 

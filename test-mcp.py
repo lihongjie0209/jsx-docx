@@ -60,9 +60,36 @@ def test_tools_list(proc):
     assert "tools" in response["result"]
     
     tools = response["result"]["tools"]
-    assert len(tools) == 1
-    assert tools[0]["name"] == "generate_docx"
-    print(f"✓ Found {len(tools)} tool(s): {tools[0]['name']}")
+    assert len(tools) == 2
+    assert tools[0]["name"] == "get_component_spec"
+    assert tools[1]["name"] == "generate_docx"
+    print(f"✓ Found {len(tools)} tool(s): {', '.join(t['name'] for t in tools)}")
+    return response
+
+def test_get_component_spec(proc):
+    """Test get_component_spec tool"""
+    print("\n=== Test: get_component_spec ===")
+    request = {
+        "jsonrpc": "2.0",
+        "id": 3,
+        "method": "tools/call",
+        "params": {
+            "name": "get_component_spec",
+            "arguments": {}
+        }
+    }
+    
+    response = send_request(proc, request)
+    assert response.get("jsonrpc") == "2.0"
+    assert "result" in response
+    assert response["result"]["isError"] == False
+    
+    content = response["result"]["content"][0]["text"]
+    assert "jsx-docx Component Specification" in content
+    assert "<Document>" in content
+    assert "<Paragraph>" in content
+    assert "<Text>" in content
+    print(f"✓ Component spec retrieved ({len(content)} characters)")
     return response
 
 def test_generate_simple_docx(proc):
@@ -84,7 +111,7 @@ def test_generate_simple_docx(proc):
     
     request = {
         "jsonrpc": "2.0",
-        "id": 3,
+        "id": 4,
         "method": "tools/call",
         "params": {
             "name": "generate_docx",
@@ -135,7 +162,7 @@ def test_generate_with_data(proc):
     
     request = {
         "jsonrpc": "2.0",
-        "id": 4,
+        "id": 5,
         "method": "tools/call",
         "params": {
             "name": "generate_docx",
@@ -149,6 +176,7 @@ def test_generate_with_data(proc):
                     "items": [
                         "Completed MCP integration",
                         "Added stdio mode support",
+                        "Added get_component_spec tool",
                         "Created test scripts"
                     ]
                 }
@@ -175,7 +203,7 @@ def test_error_handling(proc):
     
     request = {
         "jsonrpc": "2.0",
-        "id": 5,
+        "id": 6,
         "method": "tools/call",
         "params": {
             "name": "generate_docx",
@@ -216,6 +244,7 @@ def main():
         # Run tests
         test_initialize(proc)
         test_tools_list(proc)
+        test_get_component_spec(proc)  # New test
         test_generate_simple_docx(proc)
         test_generate_with_data(proc)
         test_error_handling(proc)

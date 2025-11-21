@@ -111,6 +111,35 @@ mvn package
 }
 ```
 
+## 可用工具
+
+### 1. `get_component_spec` - 获取组件规范
+
+**重要**：在生成文档之前，应首先调用此工具获取完整的组件规范和语法参考。
+
+此工具返回 jsx-docx 的完整组件规范文档（spec.md），包括：
+- 所有可用组件及其属性
+- JSX 语法规则和示例
+- 样式系统说明
+- 数据上下文使用方法
+
+**使用示例**：
+
+```json
+{
+  "name": "get_component_spec",
+  "arguments": {}
+}
+```
+
+### 2. `generate_docx` - 生成 Word 文档
+
+从 JSX 代码生成 Word 文档。支持所有 Word 功能（样式、表格、列表、图片、页眉页脚、目录等）。
+
+**推荐工作流程**：
+1. 首先调用 `get_component_spec` 了解语法
+2. 然后调用 `generate_docx` 生成文档
+
 ## 支持的功能
 
 所有 jsx-docx 组件都可以通过 MCP 使用：
@@ -138,9 +167,14 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 echo '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | java -jar target/jsx-docx-1.0-SNAPSHOT-fat.jar --mcp-stdio
 ```
 
+### 获取组件规范
+```powershell
+echo '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_component_spec","arguments":{}}}' | java -jar target/jsx-docx-1.0-SNAPSHOT-fat.jar --mcp-stdio
+```
+
 ### 生成文档
 ```powershell
-echo '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"generate_docx","arguments":{"jsxCode":"<Document><Section><Paragraph><Text>Hello MCP!</Text></Paragraph></Section></Document>","outputPath":"test.docx"}}}' | java -jar target/jsx-docx-1.0-SNAPSHOT-fat.jar --mcp-stdio
+echo '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"generate_docx","arguments":{"jsxCode":"<Document><Section><Paragraph><Text>Hello MCP!</Text></Paragraph></Section></Document>","outputPath":"test.docx"}}}' | java -jar target/jsx-docx-1.0-SNAPSHOT-fat.jar --mcp-stdio
 ```
 
 ### Python 测试脚本
@@ -152,9 +186,10 @@ python test-mcp.py
 该脚本会自动测试：
 1. 初始化连接
 2. 列出工具
-3. 生成简单文档
-4. 生成带数据的文档
-5. 错误处理
+3. 获取组件规范
+4. 生成简单文档
+5. 生成带数据的文档
+6. 错误处理
 
 ## 故障排查
 

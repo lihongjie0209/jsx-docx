@@ -4,6 +4,30 @@ This directory contains examples for using jsx-docx through MCP (Model Context P
 
 ## Basic Usage
 
+### Example 0: Get Component Specification (IMPORTANT - Always Call First!)
+
+**Request:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 0,
+  "method": "tools/call",
+  "params": {
+    "name": "get_component_spec",
+    "arguments": {}
+  }
+}
+```
+
+**Response:** Returns the complete jsx-docx component specification with all available components, their properties, and JSX syntax rules. This is essential for understanding how to write correct JSX code.
+
+**Why call this first?**
+- Learn all available components (`<Document>`, `<Paragraph>`, `<Text>`, `<Table>`, etc.)
+- Understand component properties and their types
+- See correct JSX syntax examples
+- Know which attributes are required vs optional
+- Avoid common mistakes in JSX structure
+
 ### Example 1: Simple Document
 
 **Request:**
@@ -172,6 +196,48 @@ Then you can ask Claude to generate Word documents:
 
 Claude will use the `generate_docx` tool to create the documents for you!
 
+## Available MCP Tools
+
+jsx-docx provides two MCP tools:
+
+### 1. `get_component_spec` - Get Component Specification
+
+**Always call this first!** Returns the complete jsx-docx component specification including:
+- All available components and their properties
+- JSX syntax rules and examples
+- Data context usage
+- Style system documentation
+- Error handling guidelines
+
+**Parameters:** None
+
+**Usage:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "get_component_spec",
+    "arguments": {}
+  }
+}
+```
+
+### 2. `generate_docx` - Generate Word Document
+
+Generate a Word document from JSX code. Supports all Word features.
+
+**Parameters:**
+- `jsxCode` (string, required): JSX code defining document structure
+- `outputPath` (string, required): Output .docx file path
+- `data` (object, optional): Data context accessible as `data` global in JSX
+
+**Recommended workflow:**
+1. Call `get_component_spec` to learn syntax
+2. Write JSX code based on specification
+3. Call `generate_docx` with your JSX code
+
 ## Supported Components
 
 All jsx-docx components are available through MCP:
@@ -179,21 +245,23 @@ All jsx-docx components are available through MCP:
 - **Document structure**: `<Document>`, `<Section>`, `<Paragraph>`, `<Text>`
 - **Styles**: `<Styles>`, `<Style>`
 - **Lists**: `<BulletedList>`, `<NumberedList>`, `<ListItem>`
-- **Tables**: `<Table>`, `<TableRow>`, `<TableCell>`
+- **Tables**: `<Table>`, `<Row>`, `<Cell>`
 - **Images**: `<Image>` (with path, base64, or URL)
 - **Headers/Footers**: `<Header>`, `<Footer>`, `<PageNumber>`
-- **Table of Contents**: `<TOC>`
+- **Table of Contents**: `<Toc>`
 - **Includes**: `<Include>` (for modular documents)
 
-See [Component Specification](../docs/spec.md) for full documentation.
+See [Component Specification](../docs/spec.md) for full documentation, or call `get_component_spec` tool.
 
 ## Tips
 
-1. **Escape quotes in JSON**: Use `\"` for quotes inside JSX strings
-2. **Single-line JSX**: Keep JSX code on a single line or escape newlines in JSON
-3. **Data context**: Use the `data` parameter to inject dynamic content
-4. **Error handling**: Check `isError` field in response for generation errors
-5. **File paths**: Use absolute paths for `outputPath` to avoid confusion
+1. **Always get spec first**: Call `get_component_spec` before generating documents to understand available components and syntax
+2. **Escape quotes in JSON**: Use `\"` for quotes inside JSX strings
+3. **Single-line JSX**: Keep JSX code on a single line or escape newlines in JSON
+4. **Data context**: Use the `data` parameter to inject dynamic content
+5. **Error handling**: Check `isError` field in response for generation errors
+6. **File paths**: Use absolute paths for `outputPath` to avoid confusion
+7. **Learn from spec**: The specification includes working examples for all components
 
 ## See Also
 
