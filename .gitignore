@@ -21,6 +21,10 @@ test-*.zip
 test-*-extracted/
 examples-output/
 
+# Generated example outputs
+weekly-report.docx
+weekly-report-with-data.docx
+
 # Local development
 local-settings.xml
 
