@@ -20,6 +20,11 @@ java -jar target/jsx-docx-1.0-SNAPSHOT-fat.jar test.jsx
 java -jar target/jsx-docx-1.0-SNAPSHOT-fat.jar test.jsx -o output.docx
 ```
 
+**使用 JSON 数据上下文：**
+```powershell
+java -jar target/jsx-docx-1.0-SNAPSHOT-fat.jar template.jsx --data context.json -o output.docx
+```
+
 **批量转换：**
 ```powershell
 # 转换多个文件到当前目录
@@ -75,6 +80,26 @@ const items = ['Apple', 'Banana', 'Orange'];
     </BulletedList>
   </Section>
 </Document>
+```
+
+4. 支持运行时数据上下文（从 JSON 文件或程序调用）：
+```jsx
+<Document>
+  <Section pageSize="A4">
+    <Paragraph><Text>标题：{data.title}</Text></Paragraph>
+    <Paragraph><Text>作者：{data.author}</Text></Paragraph>
+    <BulletedList>
+      {data.items.map(item => (
+        <ListItem><Paragraph><Text>{item}</Text></Paragraph></ListItem>
+      ))}
+    </BulletedList>
+  </Section>
+</Document>
+```
+
+使用 JSON 数据文件运行：
+```powershell
+java -jar target/jsx-docx-1.0-SNAPSHOT-fat.jar template.jsx --data data.json -o output.docx
 ```
 
 ## 示例文件

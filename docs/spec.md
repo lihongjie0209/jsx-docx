@@ -1,6 +1,47 @@
 # JSX-Docx 组件规范
 
-本文档定义了系统中可用的 JSX 组件、属性、子节点约束以及渲染到 DOCX 的行为。规范优先，代码实现需与本规范一致；未实现项会在“实现状态”中标注。
+本文档定义了系统中可用的 JSX 组件、属性、子节点约束以及渲染到 DOCX 的行为。规范优先，代码实现需与本规范一致；未实现项会在"实现状态"中标注。
+
+## 全局 Data 对象
+
+JSX 代码可以访问全局 `data` 对象，该对象包含运行时传递的参数。数据可以通过两种方式提供：
+
+### 程序调用
+```java
+Map<String, Object> data = new HashMap<>();
+data.put("title", "My Document");
+data.put("author", "John Doe");
+new JsRuntime().run(compiledJs, data);
+```
+
+### CLI 使用
+```bash
+java -jar jsx-docx.jar template.jsx --data context.json -o output.docx
+```
+
+### JSX 中使用
+```jsx
+<Document>
+  <Section>
+    <Paragraph><Text>{data.title}</Text></Paragraph>
+    <Paragraph><Text>作者: {data.author}</Text></Paragraph>
+    
+    {/* 支持数组迭代 */}
+    <BulletedList>
+      {data.items.map(item => (
+        <ListItem><Paragraph><Text>{item}</Text></Paragraph></ListItem>
+      ))}
+    </BulletedList>
+    
+    {/* 支持嵌套对象 */}
+    <Paragraph><Text>{data.user.name} ({data.user.email})</Text></Paragraph>
+  </Section>
+</Document>
+```
+
+支持数据类型：`string`、`number`、`boolean`、`object`、`array`。
+
+---
 
 ## 公共约定
  - 子节点：`<Section>`、`<Paragraph>`、`<Heading>`、`<Table>`、`<PageBreak>`、`<Image>`、`<Link>`、`<BulletedList>`、`<NumberedList>`、`<Header>`、`<Footer>`、纯文本。
