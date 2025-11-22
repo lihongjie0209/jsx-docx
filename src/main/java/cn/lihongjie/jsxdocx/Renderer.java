@@ -73,6 +73,8 @@ public class Renderer {
     private Path basePath;
     private Map<String, Object> dataContext;
     private Set<Path> includeStack;
+    private int totalSections;
+    private int currentSectionIndex;
 
     private void renderStyles(XWPFDocument document, VNode stylesNode) {
         try {
@@ -243,6 +245,10 @@ public class Renderer {
         this.dataContext = dataContext;
         this.includeStack = new HashSet<>();
         
+        // Pre-scan to count sections
+        this.totalSections = countSections(vDom);
+        this.currentSectionIndex = 0;
+        
         try (XWPFDocument document = new XWPFDocument()) {
 
             if (!"document".equals(vDom.getType())) {
@@ -403,8 +409,37 @@ public class Renderer {
                 }
                 break;
             case "section":
-                applySectionProps(parent, node);
-                renderChildren(parent, node);
+                // For sections, we need to render children first, then apply section properties
+                if (parent instanceof XWPFDocument) {
+                    XWPFDocument doc = (XWPFDocument) parent;
+                    int paraCountBefore = doc.getParagraphs().size();
+                    
+                    // Increment section counter
+                    currentSectionIndex++;
+                    
+                    // Render all children of this section
+                    renderChildren(parent, node);
+                    
+                    // Apply section properties to the last paragraph in this section
+                    // If no paragraphs were created, create one
+                    if (doc.getParagraphs().size() == paraCountBefore) {
+                        doc.createParagraph();
+                    }
+                    
+                    // Determine if this is the last section
+                    boolean isLastSection = (currentSectionIndex >= totalSections);
+                    
+                    // Apply section properties
+                    if (isLastSection) {
+                        // Last section: use document-level sectPr for compatibility
+                        applySectionPropsToDocument(doc, node);
+                    } else {
+                        // Not last section: use paragraph-level sectPr for section break
+                        applySectionPropsToLastParagraph(doc, node);
+                    }
+                } else {
+                    renderChildren(parent, node);
+                }
                 break;
             case "paragraph":
                 if (parent instanceof XWPFParagraph) {
@@ -723,17 +758,46 @@ public class Renderer {
         run5.addNewFldChar().setFldCharType(STFldCharType.END);
     }
 
-    private void applySectionProps(Object parent, VNode node) {
-        if (!(parent instanceof XWPFDocument)) return;
-        XWPFDocument doc = (XWPFDocument) parent;
+    /**
+     * Apply section properties to the last paragraph in the document.
+     * This creates a new section with its own properties.
+     */
+    private void applySectionPropsToLastParagraph(XWPFDocument doc, VNode node) {
+        if (doc.getParagraphs().isEmpty()) {
+            return;
+        }
+        
+        // Get the last paragraph and add section properties to it
+        XWPFParagraph lastPara = doc.getParagraphs().get(doc.getParagraphs().size() - 1);
+        CTPPr pPr = lastPara.getCTP().isSetPPr() ? lastPara.getCTP().getPPr() : lastPara.getCTP().addNewPPr();
+        CTSectPr sectPr = pPr.isSetSectPr() ? pPr.getSectPr() : pPr.addNewSectPr();
+
+        applySectionPropsToSectPr(sectPr, node);
+    }
+
+    /**
+     * Apply section properties to the document-level sectPr.
+     * This is used for the last section or when there's only one section.
+     */
+    private void applySectionPropsToDocument(XWPFDocument doc, VNode node) {
         CTSectPr sectPr = doc.getDocument().getBody().isSetSectPr()
                 ? doc.getDocument().getBody().getSectPr()
                 : doc.getDocument().getBody().addNewSectPr();
 
+        applySectionPropsToSectPr(sectPr, node);
+    }
+
+    /**
+     * Apply section properties to a CTSectPr object.
+     */
+    private void applySectionPropsToSectPr(CTSectPr sectPr, VNode node) {
+        // Get or create page size object once
+        CTPageSz pgSz = sectPr.isSetPgSz() ? sectPr.getPgSz() : sectPr.addNewPgSz();
+
+        // Set page size dimensions
         Object size = node.getProps().get("pageSize");
         if (size != null) {
             String s = String.valueOf(size).toUpperCase();
-            CTPageSz pgSz = sectPr.isSetPgSz() ? sectPr.getPgSz() : sectPr.addNewPgSz();
             if ("A4".equals(s)) {
                 pgSz.setW(BigInteger.valueOf(11900));
                 pgSz.setH(BigInteger.valueOf(16840));
@@ -743,18 +807,25 @@ public class Renderer {
             }
         }
 
+        // Set orientation (if specified)
         Object orientation = node.getProps().get("orientation");
         if (orientation != null) {
             String o = String.valueOf(orientation).toLowerCase();
-            CTPageSz pgSz = sectPr.isSetPgSz() ? sectPr.getPgSz() : sectPr.addNewPgSz();
             try {
                 org.openxmlformats.schemas.wordprocessingml.x2006.main.STPageOrientation.Enum val =
                         "landscape".equals(o)
                                 ? org.openxmlformats.schemas.wordprocessingml.x2006.main.STPageOrientation.LANDSCAPE
                                 : org.openxmlformats.schemas.wordprocessingml.x2006.main.STPageOrientation.PORTRAIT;
                 pgSz.setOrient(val);
+                
+                // Swap width and height for landscape orientation
+                if ("landscape".equals(o) && pgSz.isSetW() && pgSz.isSetH()) {
+                    BigInteger w = BigInteger.valueOf(Long.parseLong(pgSz.getW().toString()));
+                    BigInteger h = BigInteger.valueOf(Long.parseLong(pgSz.getH().toString()));
+                    pgSz.setW(h);
+                    pgSz.setH(w);
+                }
             } catch (Throwable ignored) {}
-            // Note: width/height swap is not required for Word to respect orientation
         }
 
         Object margins = node.getProps().get("margins");
@@ -771,6 +842,24 @@ public class Renderer {
             if (left != null) pgMar.setLeft(BigInteger.valueOf(left));
             if (right != null) pgMar.setRight(BigInteger.valueOf(right));
         }
+    }
+
+    /**
+     * Count the total number of section nodes in the VNode tree.
+     */
+    private int countSections(VNode node) {
+        int count = 0;
+        if ("section".equals(node.getType())) {
+            count = 1;
+        }
+        if (node.getChildren() != null) {
+            for (Object child : node.getChildren()) {
+                if (child instanceof VNode) {
+                    count += countSections((VNode) child);
+                }
+            }
+        }
+        return count;
     }
 
     private void applyParagraphProps(XWPFParagraph p, VNode node) {

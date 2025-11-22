@@ -2,9 +2,25 @@
 
 This directory contains examples for using jsx-docx through MCP (Model Context Protocol).
 
+## ⚠️ MANDATORY WORKFLOW
+
+**Before generating any documents, you MUST:**
+1. **First call** `get_component_spec` to retrieve the complete specification
+2. **Read and understand** all component syntax and properties
+3. **Then call** `generate_docx` to generate documents
+
+**Why this is mandatory:**
+- The specification defines ALL available components and their correct syntax
+- Skipping this step will result in syntax errors and invalid documents
+- Component names, properties, and structure must match the spec exactly
+- The spec includes examples showing proper JSX usage
+
+❌ **Wrong:** Directly call `generate_docx` based on assumptions
+✅ **Correct:** Call `get_component_spec` → Read spec → Call `generate_docx`
+
 ## Basic Usage
 
-### Example 0: Get Component Specification (IMPORTANT - Always Call First!)
+### Example 0: Get Component Specification ⚠️ MANDATORY FIRST STEP
 
 **Request:**
 ```json

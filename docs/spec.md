@@ -85,6 +85,7 @@ java -jar jsx-docx.jar template.jsx --data context.json -o output.docx
     - `right`: 数字，右边距（英寸）
     - 内部会自动转换为 twips（`inches × 1440`）
 - 行为：设置文档节属性（`CTSectPr`），包括页面尺寸、方向和边距。不同于其他容器组件，`<Section>` 本身不创建新的 POI 对象，而是应用属性后渲染子节点到同一文档级别。
+  - **重要**：当同时设置 `pageSize` 和 `orientation="landscape"` 时，页面的宽度和高度会自动交换。例如，A4 纵向是 11900×16840 twips，A4 横向会自动变为 16840×11900 twips。
 - 示例：
 ```jsx
 <Section 

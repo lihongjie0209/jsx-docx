@@ -117,10 +117,11 @@ public class McpServer {
         // Tool 1: get_component_spec
         ObjectNode specTool = mapper.createObjectNode();
         specTool.put("name", "get_component_spec");
-        specTool.put("description", "Get the complete jsx-docx component specification and syntax reference. " +
-                "IMPORTANT: Call this tool FIRST before generating any documents to understand available components, " +
-                "their properties, and correct JSX syntax. The spec includes: Document structure, Styles system, " +
-                "Text formatting, Tables, Lists, Images, Headers/Footers, TOC, and all component properties.");
+        specTool.put("description", "⚠️ MANDATORY FIRST STEP: Get the complete jsx-docx component specification and syntax reference. " +
+                "You MUST call this tool BEFORE generating any documents to understand available components, " +
+                "their properties, and correct JSX syntax. Do NOT attempt to generate documents without reading the spec first. " +
+                "The spec includes: Document structure, Styles system, Text formatting, Tables, Lists, Images, Headers/Footers, TOC, " +
+                "and all component properties with correct syntax examples.");
         
         ObjectNode specSchema = mapper.createObjectNode();
         specSchema.put("type", "object");
@@ -135,7 +136,8 @@ public class McpServer {
         docTool.put("name", "generate_docx");
         docTool.put("description", "Generate a Word document (.docx) from JSX code. " +
                 "Supports all Word features including styles, tables, lists, images, headers/footers, TOC, etc. " +
-                "RECOMMENDED: Call get_component_spec first to understand the correct syntax and available components.");
+                "⚠️ PREREQUISITE REQUIRED: You MUST call get_component_spec FIRST to read the complete specification " +
+                "before using this tool. Generating documents without reading the spec will result in syntax errors.");
         
         ObjectNode inputSchema = mapper.createObjectNode();
         inputSchema.put("type", "object");

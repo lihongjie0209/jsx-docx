@@ -122,6 +122,40 @@ const items = ['Apple', 'Banana', 'Orange'];
 java -jar target/jsx-docx-1.0-SNAPSHOT-fat.jar template.jsx --data data.json -o output.docx
 ```
 
+## 支持的组件
+
+jsx-docx 提供了完整的 JSX 组件库用于生成 Word 文档。以下是所有支持的组件列表：
+
+| 组件 | 说明 | 主要属性 |
+|------|------|----------|
+| `<Document>` | 文档根节点 | - |
+| `<Section>` | 文档节，设置页面布局 | `pageSize`, `orientation`, `margins` |
+| `<Styles>` | 样式定义容器 | - |
+| `<Style>` | 单个样式定义 | `styleId`, `type`, `bold`, `fontSize`, `color`, 等 |
+| `<Paragraph>` | 段落 | `styleId`, `align`, `before`, `after`, `line`, `indent*`, 等 |
+| `<Text>` | 文本运行（带格式） | `styleId`, `bold`, `italic`, `size`, `color`, `underline`, 等 |
+| `<Heading>` | 标题段落 | `styleId` (必需) |
+| `<Table>` | 表格 | `styleId`, `width`, `border`, `align`, `layout`, `columns` |
+| `<Row>` | 表格行 | `header`, `height` |
+| `<Cell>` | 表格单元格 | `styleId`, `vAlign`, `padding`, `width`, `background`, `border`, `colspan`, `rowspan` |
+| `<BulletedList>` | 项目符号列表 | `bulletChar`, `bulletFont`, `indentLeft`, `indentIncrement`, `indentHanging` |
+| `<NumberedList>` | 有序列表 | `start`, `format`, `levelConfig` |
+| `<ListItem>` | 列表项 | `level` |
+| `<Link>` | 超链接 | `href` |
+| `<Image>` | 图片 | `src`, `width`, `height`, `fit`, `maxWidth`, `maxHeight` |
+| `<Header>` | 页眉 | `type` (`default`/`first`/`even`/`odd`) |
+| `<Footer>` | 页脚 | `type` (`default`/`first`/`even`/`odd`) |
+| `<PageBreak>` | 分页符 | - |
+| `<PageNumber>` | 页码域 | - |
+| `<Toc>` | 目录 | `title`, `maxLevel`, `hyperlink`, `showPageNumbers` |
+| `<Br>` | 段落内换行 | - |
+| `<Tab>` | 制表符 | - |
+| `<Include>` | 包含外部文件 | `path` |
+
+### 完整组件规范
+
+查看 **[完整组件规范文档](docs/spec.md)** 了解每个组件的详细说明、所有属性、子节点约束、使用示例和实现细节。
+
 ## 示例文件
 
 查看 `examples/` 目录获取各种功能演示：
