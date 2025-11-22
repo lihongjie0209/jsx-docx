@@ -183,7 +183,15 @@ public class JsRuntime {
 
     private VNode toVNode(Value value) {
         VNode node = new VNode();
-        node.setType(value.getMember("type").asString());
+        
+        // Get type - handle both string and other types
+        Value typeVal = value.getMember("type");
+        if (typeVal.isString()) {
+            node.setType(typeVal.asString());
+        } else {
+            // For function types or other non-string types, convert to string
+            node.setType(typeVal.toString());
+        }
 
         Map<String, Object> props = new HashMap<>();
         Value propsVal = value.getMember("props");
@@ -203,10 +211,18 @@ public class JsRuntime {
                 Value c = childrenVal.getArrayElement(i);
                 if (c.isString()) {
                     children.add(c.asString());
-                } else if (c.hasMembers()) {
-                    children.add(toVNode(c));
                 } else if (c.isNumber()) {
-                    children.add(c.asString());
+                    // Convert numbers to strings
+                    children.add(String.valueOf(toJavaPrimitive(c)));
+                } else if (c.isBoolean()) {
+                    // Convert booleans to strings
+                    children.add(String.valueOf(c.asBoolean()));
+                } else if (c.hasMembers()) {
+                    // Recursively convert VNode objects
+                    children.add(toVNode(c));
+                } else if (!c.isNull()) {
+                    // Fallback: convert to string
+                    children.add(c.toString());
                 }
             }
         }

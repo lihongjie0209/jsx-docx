@@ -47,6 +47,45 @@ java -jar jsx-docx.jar template.jsx --data context.json -o output.docx
 
 ---
 
+## 自定义组件（Custom Components）
+
+jsx-docx 完整支持 React 风格的函数组件语法，允许创建可复用的组件。
+
+### 基本语法
+
+```jsx
+// 定义组件
+const MyComponent = ({ prop1, prop2, children }) => {
+  return <Paragraph><Text>{prop1} {prop2}</Text></Paragraph>;
+};
+
+// 使用组件
+<Document>
+  <MyComponent prop1="Hello" prop2="World" />
+</Document>
+```
+
+### 特性
+
+- **Props 传递**：通过属性传递参数
+- **Children 传递**：通过 `children` prop 接收子元素
+- **嵌套组件**：组件可以调用其他组件
+- **条件渲染**：使用 `if`、三元运算符等
+- **循环生成**：使用 `map`、`for` 等
+- **数字自动转换**：数字会自动转换为字符串
+
+### 实现原理
+
+runtime.js 在 `React.createElement()` 中检测到 type 是函数时，会：
+1. 合并 props 和 children
+2. 调用函数组件
+3. 返回组件生成的 VNode
+4. 递归处理嵌套组件
+
+详细说明和示例请参考 [function-components.md](./function-components.md)
+
+---
+
 ## 公共约定
 - 文本节点：字符串会渲染为段落或文字的文本内容。
 - 颜色：统一使用 `#RRGGBB`，渲染时自动去掉 `#`。

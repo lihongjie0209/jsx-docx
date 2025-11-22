@@ -34,9 +34,24 @@ const React = {
         const flatChildren = [];
         const add = (c) => {
             if (Array.isArray(c)) c.forEach(add);
-            else if (c !== null && c !== undefined && c !== false && c !== true) flatChildren.push(c);
+            else if (c !== null && c !== undefined && c !== false && c !== true) {
+                // Convert numbers to strings for children
+                if (typeof c === 'number') {
+                    flatChildren.push(String(c));
+                } else {
+                    flatChildren.push(c);
+                }
+            }
         };
         children.forEach(add);
+        
+        // Handle function components (custom components)
+        if (typeof type === 'function') {
+            const allProps = { ...(props || {}), children: flatChildren };
+            const result = type(allProps);
+            return result;
+        }
+        
         return { type: type, props: props || {}, children: flatChildren };
     },
     Fragment: Symbol('Fragment')
@@ -68,7 +83,15 @@ function normalizeChildrenFromProps(props) {
 
 function jsx(type, props, key) {
     const { children, ...rest } = props || {};
-    return { type, props: rest, children: normalizeChildrenFromProps(props) };
+    const normalizedChildren = normalizeChildrenFromProps(props);
+    
+    // Handle function components (custom components)
+    if (typeof type === 'function') {
+        const allProps = { ...rest, children: normalizedChildren };
+        return type(allProps);
+    }
+    
+    return { type, props: rest, children: normalizedChildren };
 }
 
 function jsxs(type, props, key) {
