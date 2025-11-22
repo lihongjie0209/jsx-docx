@@ -48,24 +48,72 @@ java -jar jsx-docx.jar template.jsx --data context.json -o output.docx
 ---
 
 ## 公共约定
- - 子节点：`<Styles>`、`<Section>`、`<Paragraph>`、`<Heading>`、`<Table>`、`<PageBreak>`、`<Image>`、`<Link>`、`<BulletedList>`、`<NumberedList>`、`<Header>`、`<Footer>`、纯文本。
 - 文本节点：字符串会渲染为段落或文字的文本内容。
 - 颜色：统一使用 `#RRGGBB`，渲染时自动去掉 `#`。
 - 样式引用：多数组件支持 `styleId` 属性引用在 `<Styles>` 中定义的样式。
+- 单位：
+  - **twips**：1/20 磅，Word 内部单位。`1440 twips = 1 英寸`，`20 twips = 1 磅`。
+  - **pt（磅）**：段落属性、单元格边距等使用磅，内部会自动转换为 twips（`pt × 20`）。
+  - **英寸**：页边距使用英寸，内部会转换为 twips（`inches × 1440`）。
 
-  - `orientation`: `"portrait" | "landscape"`（页面方向）。
-## <Document>
+
+## `<Document>`
+
+
+- 作用：根节点，表示完整的 Word 文档。
 - 属性：无。
 - 子节点：`<Styles>`（可选，唯一）、`<Section>`、`<Paragraph>`、`<Heading>`、`<Table>`、`<PageBreak>`、`<Image>`、`<Link>`、`<BulletedList>`、`<NumberedList>`、`<Header>`、`<Footer>`、纯文本。
-- 行为：创建 XWPFDocument；`<Styles>` 组件会生成文档样式定义；非 `<Section>` 的子节点在默认节中渲染。
-## <Styles>
+- 行为：创建 XWPFDocument；`<Styles>` 组件会生成文档样式定义；非 `<Section>` 的子节点在默认节中渲染。系统自动在 settings.xml 中启用 `<w:updateFields/>`，使文档在 Word 中打开时自动更新所有域（如 TOC、PAGE）。
+- 实现状态：已实现。
+
+## `<Section>`
+
+
+- 作用：定义文档节，用于设置页面布局属性。
+- 子节点：`<Paragraph>`、`<Heading>`、`<Table>`、`<PageBreak>`、`<Image>`、`<Link>`、`<BulletedList>`、`<NumberedList>`、纯文本（所有块级组件）。
+- 属性：
+  - `pageSize`: 字符串，页面尺寸预设值（可选）：
+    - `"A4"`: 210mm × 297mm（默认值，11900 × 16840 twips）
+    - `"LETTER"`: 8.5" × 11"（12240 × 15840 twips）
+  - `orientation`: 字符串，页面方向（可选）：
+    - `"portrait"`: 纵向（默认）
+    - `"landscape"`: 横向
+  - `margins`: 对象，页边距（可选），**单位为英寸**，字段：
+    - `top`: 数字，上边距（英寸）
+    - `bottom`: 数字，下边距（英寸）
+    - `left`: 数字，左边距（英寸）
+    - `right`: 数字，右边距（英寸）
+    - 内部会自动转换为 twips（`inches × 1440`）
+- 行为：设置文档节属性（`CTSectPr`），包括页面尺寸、方向和边距。不同于其他容器组件，`<Section>` 本身不创建新的 POI 对象，而是应用属性后渲染子节点到同一文档级别。
+- 示例：
+```jsx
+<Section 
+  pageSize="A4" 
+  orientation="portrait" 
+  margins={{ top: 1, bottom: 1, left: 1.25, right: 1.25 }}
+>
+  <Paragraph><Text>内容</Text></Paragraph>
+</Section>
+```
+- 注意事项：
+  - **不支持** `pageMarginTop`/`pageMarginBottom`/`pageMarginLeft`/`pageMarginRight` 单独属性，必须使用 `margins` 对象。
+  - 页边距单位为英寸，不是 twips 或磅。例如：1 英寸 = 1440 twips。
+  - 页面方向改变时，无需手动交换宽高值，Word 会自动处理。
+- 实现状态：已实现。
+
+
+## `<Styles>`
+
+
 - 作用：定义文档样式（必须在 `<Document>` 的第一个子节点位置）。
 - 子节点：`<Style>`（一个或多个样式定义）。
 - 属性：无。
 - 行为：生成 Word 样式定义（styles.xml），包含 docDefaults 和所有 `<Style>` 子节点定义的样式。
 - 实现状态：已实现。
 
-## <Style>
+## `<Style>`
+
+
 - 作用：单个样式定义（仅在 `<Styles>` 内使用）。
 - 子节点：无。
 - 属性：
@@ -110,25 +158,63 @@ java -jar jsx-docx.jar template.jsx --data context.json -o output.docx
 ```
 - 实现状态：已实现。
 
- - 属性：
-   - `type`: `"default" | "first" | "even" | "odd"`，其中 `odd` 等价于默认页眉（在启用奇偶页区分时用于奇数页）。
- - 行为：根据 `type` 创建对应页眉。`first` 会启用 `titlePg`；`even`/`odd` 会启用奇偶页页眉设置。可在页眉段落中使用 `<PageNumber>`。
+## `<Paragraph>`
+
+
+- 作用：段落容器。
+- 子节点：`<Text>`、`<Link>`、`<Image>`、`<Br>`、`<Tab>`、`<PageNumber>`、纯文本。
 - 属性：
   - `styleId`: 字符串，引用 `<Styles>` 中定义的段落样式 ID（可选）。
-  - `align`: `"left" | "center" | "right" | "both"`。
- - 属性：
-   - `type`: `"default" | "first" | "even" | "odd"`，含义同 `<Header>`。
- - 行为：根据 `type` 创建对应页脚。`first` 会启用 `titlePg`；`even`/`odd` 会启用奇偶页页眉页脚设置。可在页脚段落中使用 `<PageNumber>`。
+  - `align`: `"left" | "center" | "right" | "both"`（段落对齐方式）。
+  - `before`: 数字，段前间距（磅 pt）。
+  - `after`: 数字，段后间距（磅 pt）。
+  - `line`: 数字，行间距（倍数，如 `1.5` 表示 1.5 倍行距）。
+  - `indentLeft`: 数字，左缩进（磅 pt）。
+  - `indentRight`: 数字，右缩进（磅 pt）。
+  - `firstLine`: 数字，首行缩进（磅 pt）。
+  - `keepWithNext`: 布尔，与下一段保持在同一页。
+  - `keepLines`: 布尔，段落不分页。
+  - `background`: 字符串，段落背景色 `#RRGGBB`。
   - `border`: 布尔或对象。布尔 `false` 关闭四边边框；对象 `{ size: 1, color: "#RRGGBB", sides: ["top","right","bottom","left"] }`，`size` 为磅（pt），`sides` 省略表示四边。
   - `tabStops`: 数组，段落制表位设置。元素为 `{ pos, align, leader }`：
+    - `pos`: 数字，制表位位置（磅 pt）。
     - `align`: `"left" | "center" | "right" | "decimal" | "bar"`。
     - `leader`: `"none" | "dots" | "dashes" | "underline" | "heavy" | "middleDot"`。
+- 行为：创建 XWPFParagraph，应用样式引用（若指定）或直接属性，渲染子节点。单位自动转换（pt → twips）。
+- 实现状态：已实现。
+
+## `<NumberedList>`
+
+
+- 作用：有序列表（带编号的列表）。
+- 子节点：`<ListItem>`。
+- 属性：
+  - `start`: 整数，起始编号（默认 1）。
+  - `format`: 字符串，编号格式（默认 `"decimal"`）。可选值：
+    - `"decimal"`: 阿拉伯数字（1, 2, 3...）
+    - `"lowerLetter"`: 小写字母（a, b, c...）
+    - `"upperLetter"`: 大写字母（A, B, C...）
+    - `"lowerRoman"`: 小写罗马数字（i, ii, iii...）
+    - `"upperRoman"`: 大写罗马数字（I, II, III...）
   - `levelConfig`: 数组，按层级（0..8）提供高级设置项，元素：
     - `format`: 同上（覆盖全局）。
     - `lvlText`: 自定义级别文本模式（如 `"%1.%2)"`）。
     - `indent`: `{ left: pt, hanging: pt }` 段落缩进（左缩进与悬挂缩进，单位 pt）。
+- 行为：创建带编号的编号定义（9 个层级），每个 `<ListItem>` 渲染为带序号的段落。支持多级列表（通过 `<ListItem level={n}/>`）。
+- 示例：
+```jsx
+<NumberedList format="upperRoman" start={3}>
+  <ListItem><Paragraph><Text>III. 第三项</Text></Paragraph></ListItem>
+  <ListItem level={1}><Paragraph><Text>a. 子项</Text></Paragraph></ListItem>
+</NumberedList>
+```
+- 实现状态：已实现（含多级、起始值、format、levelConfig）。
 
-## <Text>
+## `<Text>`
+
+
+- 作用：文本运行（Run），用于应用文本格式。
+- 子节点：纯文本字符串。
 - 属性：
   - `styleId`: 字符串，引用 `<Styles>` 中定义的字符样式 ID（可选）。样式引用优先于直接属性。
   - `bold`: 布尔，加粗。
@@ -147,7 +233,11 @@ java -jar jsx-docx.jar template.jsx --data context.json -o output.docx
 ```
 - 实现状态：已实现。
 
-## <Heading>
+## `<Heading>`
+
+
+- 作用：标题段落，必须通过样式引用来定义标题级别。
+- 子节点：`<Text>`、纯文本。
 - 属性：
   - `styleId`: 字符串，引用 `<Styles>` 中定义的段落样式 ID（必需，替代原 `level` 属性）。
 - 行为：创建段落并设置样式引用，渲染子节点。
@@ -159,54 +249,93 @@ java -jar jsx-docx.jar template.jsx --data context.json -o output.docx
 <Heading styleId="H1"><Text>章节标题</Text></Heading>
 ```
 - 实现状态：已实现（不再支持 `level` 属性，必须通过 `styleId` 引用样式）。
-## <Table>
+
+
+## `<Table>`
+
+
+- 作用：表格容器。
 - 子节点：`<Row>`。
 - 属性：
   - `styleId`: 字符串，引用 `<Styles>` 中定义的表格样式 ID（可选）。
-- 行为：创建表格并移除默认首行；应用样式引用（若指定）；根据属性设置表格边框、宽度（百分比使用 PCT，`100%`=5000）、对齐；渲染行。
-- 实现状态：已实现（含样式支持）。
-## <PageNumber>
+  - `border`: 布尔或对象。布尔 `false` 关闭所有边框（包括内边框）；对象 `{ size: 1, color: "#RRGGBB" }`，`size` 为磅（pt）。
+  - `width`: 字符串，表格宽度。支持百分比（如 `"100%"`，使用 PCT 模式，`100%` = 5000）。
+  - `align`: `"left" | "center" | "right"`（表格对齐方式）。
+  - `layout`: `"auto" | "fixed"`（表格布局算法）。`"fixed"` 使用固定列宽，需配合 `columns` 属性。
+  - `columns`: 数组，列宽定义（数字，单位为磅 pt）。设置此属性会自动启用 `layout="fixed"`。
+- 行为：创建表格并移除默认首行；应用样式引用（若指定）；根据属性设置表格边框、宽度（百分比使用 PCT，`100%`=5000）、对齐；渲染行。支持行/列合并（通过 `<Cell>` 的 `colspan`/`rowspan`）。
+- 示例：
+```jsx
+<Table width="100%" border={{ size: 1, color: "#000000" }} columns={[100, 200, 150]}>
+  <Row>
+    <Cell><Paragraph><Text>列1</Text></Paragraph></Cell>
+    <Cell colspan={2}><Paragraph><Text>合并列2-3</Text></Paragraph></Cell>
+  </Row>
+</Table>
+```
+- 实现状态：已实现（含样式支持、边框、宽度、对齐、固定列宽、行列合并）。
+
+
+## `<PageNumber>`
+
+
 - 作用：页码域（可用于任何段落，包括正文/页眉/页脚）。
 - 子节点：无。
 - 属性：无。
 - 行为：在当前段落插入 `PAGE` 字段（Word 字段），显示当前页码。
 - 实现状态：已实现。
-## <Row>
+
+
+## `<Row>`
+
+
 - 作用：表格行。
 - 子节点：`<Cell>`。
 - 属性：
-  - `header`: 布尔。为 `true` 时此行为表头行（跨页重复）。
-  - `height`: 行高（磅，pt）。
-- 行为：创建行，按顺序渲染单元格；若为表头行则设置跨页重复；若设置行高则应用固定高度。
-- 实现状态：`header` 已实现；`height` 本迭代实现。
+  - `header`: 布尔。为 `true` 时此行为表头行（跨页重复显示）。
+  - `height`: 数字，行高（磅 pt）。
+- 行为：创建行，按顺序渲染单元格；若为表头行则设置跨页重复（`<w:tblHeader/>`）；若设置行高则应用固定高度（内部转换为 twips）。
+- 实现状态：已实现。
 
-## <Cell>
+## `<Cell>`
+
+
 - 作用：表格单元格。
-- 子节点：块级组件或 `<Paragraph>`。
+- 子节点：`<Paragraph>`、`<Table>`（支持嵌套表格）等块级组件。
 - 属性：
   - `styleId`: 字符串，引用 `<Styles>` 中定义的段落样式 ID（可选）。样式会应用到单元格的第一个段落。
   - `vAlign`: `"top" | "center" | "bottom"`（垂直对齐）。
-  - `padding`: 对象，单位为磅（pt），字段：`top`, `bottom`, `left`, `right`（缺省字段保持默认）。
+  - `padding`: 对象，单元格内边距（单位为磅 pt），字段：`top`, `bottom`, `left`, `right`（缺省字段保持默认）。
   - `width`: 宽度。支持百分比字符串（如 `"70%"`，PCT 模式）或数字（磅 pt，DXA 模式）。
   - `background`: 单元格背景色 `#RRGGBB`。
-  - `border`: 布尔或对象。布尔 `false` 关闭四边边框；对象形如 `{ size: 1, color: "#RRGGBB", sides: ["top","right","bottom","left"] }`，其中 `size` 为磅（pt），`sides` 省略表示四边。
-  - `colspan`: 列合并，整数 ≥ 1（默认 1）。
-  - `rowspan`: 行合并，整数 ≥ 1（默认 1）。
-- 行为：创建单元格，应用样式引用（若指定）到第一个段落，应用垂直对齐与内边距（pt → twips，写入 `tcPr.vAlign` 与 `tcPr.tcMar`），再渲染子节点（段落会追加）。
-- 实现状态：`vAlign`、`padding`、`width`、`background`、`styleId` 已实现。
+  - `border`: 布尔或对象。布尔 `false` 关闭四边边框；对象 `{ size: 1, color: "#RRGGBB", sides: ["top","right","bottom","left"] }`，其中 `size` 为磅（pt），`sides` 省略表示四边。
+  - `colspan`: 列合并，整数 ≥ 1（默认 1）。通过 `tcPr.gridSpan` 实现。
+  - `rowspan`: 行合并，整数 ≥ 1（默认 1）。通过 `tcPr.vMerge` 实现。
+- 行为：创建单元格，应用样式引用（若指定）到第一个段落，应用垂直对齐与内边距（pt → twips，写入 `tcPr.vAlign` 与 `tcPr.tcMar`），再渲染子节点。
+- 合并行为：
+  - `colspan`：首个单元格设置 `gridSpan`，占据多列。
+  - `rowspan`：首个单元格设置 `vMerge="restart"`，下方连续行自动插入 `vMerge="continue"` 单元格以保持表格网格一致。
+  - 当同时设置 `colspan` 与 `rowspan` 时，系统会为覆盖区域内所有列自动管理 `continue` 单元格。
+- 示例：
+```jsx
+<Cell vAlign="center" padding={{ top: 10, bottom: 10, left: 15, right: 15 }} background="#F0F0F0">
+  <Paragraph><Text>单元格内容</Text></Paragraph>
+</Cell>
+```
+- 实现状态：已实现（含所有属性、行列合并）。
 
-合并行为说明：
-- `colspan` 通过 `tcPr.gridSpan` 生效；`rowspan` 通过 `tcPr.vMerge` 生效，首个单元格为 `restart`，下方连续行自动插入 `continue` 单元格以保持表格网格一致。
-- 当同时设置 `colspan` 与 `rowspan` 时，系统会为覆盖区域内所有列自动管理 `continue` 单元格。
+## `<PageBreak>`
 
-## <PageBreak>
+
 - 作用：手动分页符。
 - 子节点：无。
 - 属性：无。
 - 行为：插入分页段落。
 - 实现状态：已实现。
 
-## <Toc>
+## `<Toc>`
+
+
 - 作用：插入目录（Table of Contents），使用 Word TOC 域。
 - 子节点：无。
 - 属性：
@@ -242,7 +371,10 @@ java -jar jsx-docx.jar template.jsx --data context.json -o output.docx
 ```
 - 实现状态：本迭代实现。
 
-## <BulletedList>
+## `<BulletedList>`
+
+
+- 作用：项目符号列表（无序列表）。
 - 子节点：`<ListItem>`。
 - 属性：
   - `bulletChar`: 字符串，项目符号字符（默认为 Wingdings 字体的 'l' 显示为 •）。支持：
@@ -263,26 +395,25 @@ java -jar jsx-docx.jar template.jsx --data context.json -o output.docx
   - 示例：默认值下，level 0 = 420 twips，level 1 = 780 twips，level 2 = 1140 twips
 - 实现状态：已实现（支持多级、自定义项目符号字符、字体与缩进）。
 
-## <NumberedList>
-- 属性：
-  - `start`: 起始编号（默认 1）。
-  - `format`: `"decimal" | "lowerLetter" | "upperLetter" | "lowerRoman" | "upperRoman"`（默认 `decimal`）。
-- 行为：根据 `format` 创建编号样式（9 个层级）；根据 `start` 设置实例级起始值；每个 `<ListItem>` 渲染为带序号的段落。支持多级列表（`<ListItem level={n}/>`，`n` 范围 0..8）。
-- 实现状态：已实现（含多级与起始值、format）。
+## `<Br>`
 
-## <Br>
+
 - 作用：段落内换行（软换行）。
 - 子节点：无。
 - 行为：在当前段落插入 `w:br`。
 - 实现状态：已实现。
 
-## <Tab>
+## `<Tab>`
+
+
 - 作用：段落内制表符。
 - 子节点：无。
 - 行为：在当前段落插入 `w:tab`。
 - 实现状态：已实现。
 
-## <Include>
+## `<Include>`
+
+
 - 作用：在文档中包含外部 JSX 文件的内容，实现组件复用。
 - 子节点：无（外部文件的内容会被插入到当前位置）。
 - 属性：
@@ -331,7 +462,9 @@ render(
   - 大型文档的模块化组织
 - 实现状态：已实现（支持相对路径、嵌套包含、循环检测、数据上下文共享）。
 
-## <Header>
+## `<Header>`
+
+
 - 作用：文档页眉区域内容。
 - 子节点：块级组件（如 `<Paragraph>`、`<Text>` 等）。
 - 属性：
@@ -339,7 +472,9 @@ render(
 - 行为：根据 `type` 创建对应页眉。`first` 会启用 `titlePg`；`even`/`odd` 会启用奇偶页页眉设置。可在页眉段落中使用 `<PageNumber>`。
 - 实现状态：已实现。
 
-## <Footer>
+## `<Footer>`
+
+
 - 作用：文档页脚区域内容。
 - 子节点：块级组件（如 `<Paragraph>`、`<Text>` 等）。
 - 属性：
@@ -347,12 +482,28 @@ render(
 - 行为：根据 `type` 创建对应页脚。`first` 会启用 `titlePg`；`even`/`odd` 会启用奇偶页页眉页脚设置。可在页脚段落中使用 `<PageNumber>`。
 - 实现状态：已实现。
 
-## <ListItem>
+## `<ListItem>`
+
+
+- 作用：列表项（仅在 `<BulletedList>` 或 `<NumberedList>` 内使用）。
+- 子节点：`<Paragraph>`、`<Text>`、纯文本。
 - 属性：
-  - `level`: 数字，层级（默认 0，范围 0..8）。
-- 行为：创建段落并设置 `numId` 和 `ilvl=level`，再渲染子节点。
+  - `level`: 数字，层级（默认 0，范围 0..8）。用于多级列表。
+- 行为：创建段落并设置 `numId` 和 `ilvl=level`，应用父列表的编号样式，再渲染子节点。
+- 示例：
+```jsx
+<BulletedList>
+  <ListItem><Paragraph><Text>一级项目</Text></Paragraph></ListItem>
+  <ListItem level={1}><Paragraph><Text>二级项目（缩进）</Text></Paragraph></ListItem>
+  <ListItem level={2}><Paragraph><Text>三级项目（更深缩进）</Text></Paragraph></ListItem>
+</BulletedList>
+```
 - 实现状态：已实现。
-## <Link>
+
+
+## `<Link>`
+
+
 - 作用：外部超链接（内联）。
 - 子节点：纯文本或 `<Text>`（文本内容）。
 - 属性：
@@ -360,7 +511,9 @@ render(
 - 行为：在当前段落创建 `XWPFHyperlinkRun`，文本显示为子节点文本，默认下划线、蓝色。
 - 实现状态：本迭代实现。
 
-## <Image>
+## `<Image>`
+
+
 - 作用：内联图片。
 - 子节点：无（预留 `alt`）。
 - 属性：
