@@ -83,7 +83,25 @@ Document (root)
     <Cell><Text>Data 2</Text></Cell>
   </Row>
 </Table>
+
+{/* Table with colspan - IMPORTANT: all rows must have same total column count */}
+<Table width={9000}>
+  <Row>
+    <Cell width={2000}><Text>Label</Text></Cell>
+    <Cell width={3000}><Text>Value 1</Text></Cell>
+    <Cell width={2000}><Text>Label 2</Text></Cell>
+    <Cell width={2000}><Text>Value 2</Text></Cell>
+  </Row>
+  <Row>
+    <Cell width={2000}><Text>Merged Label</Text></Cell>
+    <Cell width={7000} colspan={3}><Text>This cell spans 3 columns</Text></Cell>
+  </Row>
+</Table>
 ```
+**⚠️ Table Rules:**
+- Every row MUST have the same number of columns (counting colspan)
+- If row 1 has 4 cells, all rows need 4 cells (or use colspan to merge)
+- Cell widths in same column should be consistent
 
 ### Lists
 ```jsx
@@ -487,6 +505,7 @@ When `data` parameter is provided, access it as a global:
 6. **Self-closing tags** - Empty elements use `<Image />` syntax
 7. **Boolean props** - Use `bold={true}` not `bold="true"`
 8. **Color format** - Use hex strings: `color="#FF0000"`
+9. **Table column consistency** - Every row must have same column count (use colspan to merge)
 
 ## Error Prevention
 
@@ -494,10 +513,20 @@ When `data` parameter is provided, access it as a global:
 ```jsx
 <Paragraph>Plain text</Paragraph>
 <BulletedList><ListItem>Item</ListItem></BulletedList>
+{/* Table with inconsistent columns */}
+<Table>
+  <Row><Cell>A</Cell><Cell>B</Cell></Row>
+  <Row><Cell>C</Cell><Cell>D</Cell><Cell>E</Cell><Cell>F</Cell></Row>
+</Table>
 ```
 
 ✅ Correct:
 ```jsx
 <Paragraph><Text>Plain text</Text></Paragraph>
 <BulletedList><ListItem><Paragraph><Text>Item</Text></Paragraph></ListItem></BulletedList>
+{/* Table with consistent 4 columns */}
+<Table>
+  <Row><Cell colspan={2}>A+B merged</Cell><Cell>C</Cell><Cell>D</Cell></Row>
+  <Row><Cell>A</Cell><Cell>B</Cell><Cell>C</Cell><Cell>D</Cell></Row>
+</Table>
 ```
