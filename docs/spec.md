@@ -748,6 +748,85 @@ const data = [
 
 ---
 
+## `<Comment>`
+为文档内容添加批注/评论。批注是 Word 中常用的协作功能，可以对文档中的指定文字添加注释。
+
+### 属性
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `author` | string | "Author" | 批注作者名称 |
+| `text` | string | "" | 批注内容 |
+| `initials` | string | null | 作者姓名首字母缩写（可选） |
+
+### 子节点
+- **必须**：一个或多个 `<Text>` 或其他内联组件，作为被批注的文字内容
+
+### 使用示例
+
+```jsx
+// 基础批注
+<Paragraph>
+    <Comment author="张三" text="这里需要修改">
+        <Text>被批注的文字</Text>
+    </Comment>
+</Paragraph>
+
+// 带首字母缩写的批注
+<Paragraph>
+    <Comment author="John Doe" initials="JD" text="Please review this section">
+        <Text>Review this section</Text>
+    </Comment>
+</Paragraph>
+
+// 多个批注
+<Paragraph>
+    <Comment author="审稿人A" text="第一处批注">
+        <Text>第一段被批注的文字</Text>
+    </Comment>
+    <Text> - 普通文字 - </Text>
+    <Comment author="审稿人B" text="第二处批注">
+        <Text>第二段被批注的文字</Text>
+    </Comment>
+</Paragraph>
+
+// 对格式化文字添加批注
+<Paragraph>
+    <Comment author="编辑" text="加粗效果很好">
+        <Text bold={true}>加粗文字</Text>
+    </Comment>
+</Paragraph>
+```
+
+### 注意事项
+1. **位置**：`<Comment>` 应放在 `<Paragraph>` 内部，包裹需要添加批注的内联内容。
+2. **子节点**：Comment 的子节点会渲染为带有批注标记的文档内容。
+3. **批注面板**：在 Word 中打开文档时，批注会显示在批注面板或边栏中。
+4. **唯一ID**：每个批注自动分配唯一ID，无需手动指定。
+
+### 常见用法
+```jsx
+// 审稿批注
+<Comment author="李四" text="建议使用更准确的术语">
+    <Text>这个概念</Text>
+</Comment>
+
+// 代码审查风格
+<Comment author="Reviewer" text="Consider using a more descriptive variable name">
+    <Text>x</Text>
+</Comment>
+
+// 中文批注
+<Comment author="校对员" text="此处标点符号需要修正">
+    <Text>标点符号。</Text>
+</Comment>
+```
+
+- 行为：在文档内容上添加批注标记，批注内容存储在 Word 的批注区域，可在批注面板中查看和回复。
+- 实现状态：已实现（支持 author、text、initials 属性）。
+
+---
+
 ## 样式系统说明
 
 ### 样式引用机制

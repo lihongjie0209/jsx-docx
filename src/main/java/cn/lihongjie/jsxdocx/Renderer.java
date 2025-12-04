@@ -91,6 +91,9 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTP;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPicture;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTBody;
 
+// Comment imports
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTMarkupRange;
+
 public class Renderer {
 
     private XWPFDocument currentDocument;
@@ -99,6 +102,7 @@ public class Renderer {
     private Set<Path> includeStack;
     private int totalSections;
     private int currentSectionIndex;
+    private int nextCommentId = 0;  // Auto-incrementing comment ID counter
 
     private void renderStyles(XWPFDocument document, VNode stylesNode) {
         try {
@@ -667,6 +671,12 @@ public class Renderer {
                 XWPFDocument watermarkDoc = findDocument(parent);
                 if (watermarkDoc != null) {
                     renderWatermark(watermarkDoc, node);
+                }
+                break;
+            case "comment":
+                // Comment wraps text content with annotation
+                if (parent instanceof XWPFParagraph) {
+                    renderComment((XWPFParagraph) parent, node);
                 }
                 break;
             default:
@@ -2220,5 +2230,87 @@ public class Renderer {
         
         // Return as XWPFParagraph
         return new XWPFParagraph(p, doc);
+    }
+
+    /**
+     * Render a Comment component that wraps text with annotation
+     * Props:
+     *   - author: String (required) - Comment author name
+     *   - text: String (required) - Comment content
+     *   - initials: String (optional) - Author initials
+     *   - date: String (optional) - Comment date (ISO format)
+     * Children: Text content to be annotated
+     */
+    private void renderComment(XWPFParagraph para, VNode node) {
+        try {
+            // Get props
+            String author = String.valueOf(node.getProps().get("author"));
+            if (author == null || "null".equals(author)) {
+                author = "Author";
+            }
+            
+            String commentText = String.valueOf(node.getProps().get("text"));
+            if (commentText == null || "null".equals(commentText)) {
+                commentText = "";
+            }
+            
+            String initials = String.valueOf(node.getProps().get("initials"));
+            if (initials == null || "null".equals(initials)) {
+                initials = null;
+            }
+            
+            String date = String.valueOf(node.getProps().get("date"));
+            if (date == null || "null".equals(date)) {
+                date = null;
+            }
+            
+            // Find the document
+            XWPFDocument doc = findDocument(para);
+            if (doc == null) {
+                System.err.println("Error: Cannot find document for comment");
+                return;
+            }
+            
+            // Generate unique comment ID
+            BigInteger commentId = BigInteger.valueOf(nextCommentId++);
+            
+            // Create or get comments container
+            XWPFComments comments = doc.createComments();
+            
+            // Create the comment
+            XWPFComment comment = comments.createComment(commentId);
+            comment.setAuthor(author);
+            if (initials != null) {
+                comment.setInitials(initials);
+            }
+            // Note: Date parsing omitted for simplicity; use current date if needed
+            
+            // Add comment text as paragraph
+            XWPFParagraph commentPara = comment.createParagraph();
+            XWPFRun commentRun = commentPara.createRun();
+            commentRun.setText(commentText);
+            
+            // Get underlying CTP for low-level XML manipulation
+            CTP ctp = para.getCTP();
+            
+            // Add comment range start
+            CTMarkupRange commentStart = ctp.addNewCommentRangeStart();
+            commentStart.setId(commentId);
+            
+            // Render children (the annotated text)
+            renderChildren(para, node);
+            
+            // Add comment range end
+            CTMarkupRange commentEnd = ctp.addNewCommentRangeEnd();
+            commentEnd.setId(commentId);
+            
+            // Add comment reference
+            CTR commentRef = ctp.addNewR();
+            commentRef.addNewCommentReference().setId(commentId);
+            
+        } catch (Exception e) {
+            System.err.println("Error: Failed to render Comment: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 }

@@ -28,6 +28,7 @@ const Toc = 'toc';
 const Include = 'include';
 const Chart = 'chart';
 const Watermark = 'watermark';
+const Comment = 'comment';
 
 // 2. JSX runtime implementations
 // Classic: React.createElement(...)
