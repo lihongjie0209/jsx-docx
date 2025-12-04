@@ -679,6 +679,18 @@ public class Renderer {
                     renderComment((XWPFParagraph) parent, node);
                 }
                 break;
+            case "footnote":
+                // Footnote adds a reference mark and content at page bottom
+                if (parent instanceof XWPFParagraph) {
+                    renderFootnote((XWPFParagraph) parent, node);
+                }
+                break;
+            case "endnote":
+                // Endnote adds a reference mark and content at document end
+                if (parent instanceof XWPFParagraph) {
+                    renderEndnote((XWPFParagraph) parent, node);
+                }
+                break;
             default:
                 // Handle Fragment and other unknown types by rendering children
                 if (type != null && (type.contains("Fragment") || type.contains("Symbol"))) {
@@ -2310,6 +2322,94 @@ public class Renderer {
             
         } catch (Exception e) {
             System.err.println("Error: Failed to render Comment: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Render a Footnote component that adds a reference mark and content at page bottom
+     * Props:
+     *   - text: String (required) - Footnote content text
+     * The footnote reference mark will be added inline where the component appears
+     */
+    private void renderFootnote(XWPFParagraph para, VNode node) {
+        try {
+            // Get props
+            String footnoteText = String.valueOf(node.getProps().get("text"));
+            if (footnoteText == null || "null".equals(footnoteText)) {
+                footnoteText = "";
+            }
+            
+            // Find the document
+            XWPFDocument doc = findDocument(para);
+            if (doc == null) {
+                System.err.println("Error: Cannot find document for footnote");
+                return;
+            }
+            
+            // Create the footnote
+            XWPFFootnote footnote = doc.createFootnote();
+            
+            // Add footnote content
+            XWPFParagraph footnotePara = footnote.createParagraph();
+            XWPFRun footnoteRun = footnotePara.createRun();
+            footnoteRun.setText(footnoteText);
+            
+            // Get the footnote ID
+            BigInteger footnoteId = footnote.getId();
+            
+            // Add footnote reference in the main paragraph
+            XWPFRun run = para.createRun();
+            CTP ctp = para.getCTP();
+            CTR ctr = ctp.addNewR();
+            ctr.addNewFootnoteReference().setId(footnoteId);
+            
+        } catch (Exception e) {
+            System.err.println("Error: Failed to render Footnote: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Render an Endnote component that adds a reference mark and content at document end
+     * Props:
+     *   - text: String (required) - Endnote content text
+     * The endnote reference mark will be added inline where the component appears
+     */
+    private void renderEndnote(XWPFParagraph para, VNode node) {
+        try {
+            // Get props
+            String endnoteText = String.valueOf(node.getProps().get("text"));
+            if (endnoteText == null || "null".equals(endnoteText)) {
+                endnoteText = "";
+            }
+            
+            // Find the document
+            XWPFDocument doc = findDocument(para);
+            if (doc == null) {
+                System.err.println("Error: Cannot find document for endnote");
+                return;
+            }
+            
+            // Create the endnote
+            XWPFEndnote endnote = doc.createEndnote();
+            
+            // Add endnote content
+            XWPFParagraph endnotePara = endnote.createParagraph();
+            XWPFRun endnoteRun = endnotePara.createRun();
+            endnoteRun.setText(endnoteText);
+            
+            // Get the endnote ID
+            BigInteger endnoteId = endnote.getId();
+            
+            // Add endnote reference in the main paragraph
+            XWPFRun run = para.createRun();
+            CTP ctp = para.getCTP();
+            CTR ctr = ctp.addNewR();
+            ctr.addNewEndnoteReference().setId(endnoteId);
+            
+        } catch (Exception e) {
+            System.err.println("Error: Failed to render Endnote: " + e.getMessage());
             e.printStackTrace();
         }
     }

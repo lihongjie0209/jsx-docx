@@ -29,6 +29,8 @@ const Include = 'include';
 const Chart = 'chart';
 const Watermark = 'watermark';
 const Comment = 'comment';
+const Footnote = 'footnote';
+const Endnote = 'endnote';
 
 // 2. JSX runtime implementations
 // Classic: React.createElement(...)
