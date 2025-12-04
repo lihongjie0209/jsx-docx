@@ -676,6 +676,78 @@ const data = [
 
 ---
 
+## `<Watermark>`
+
+**用途**：在文档每页上显示水印文字，常用于标识文档机密级别（如"机密"、"草稿"等）。
+
+**实现原理**：水印通过 VML (Vector Markup Language) 形状实现，放置在文档的页眉区域。VML 是 Office Open XML 中用于绘制矢量图形的遗留技术，所有主流 Word 版本均支持。
+
+### 属性
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `text` | string | "WATERMARK" | 水印文字内容 |
+| `color` | string | "#C0C0C0" | 文字颜色，格式为 `#RRGGBB` |
+| `fontFamily` | string | "Cambria" | 字体名称 |
+| `fontSize` | number | 88 | 字体大小（磅） |
+| `rotation` | number | -45 | 旋转角度（度），负值逆时针旋转 |
+| `opacity` | number | 0.5 | 透明度，范围 0.0～1.0 |
+
+### 用法
+
+```jsx
+// 基本水印
+<Document>
+    <Watermark text="机密" />
+    <Section>
+        <Paragraph><Text>文档内容...</Text></Paragraph>
+    </Section>
+</Document>
+
+// 自定义水印样式
+<Document>
+    <Watermark 
+        text="CONFIDENTIAL" 
+        color="#FF0000"
+        fontSize={72}
+        rotation={-30}
+        fontFamily="Arial Black"
+        opacity={0.3}
+    />
+    <Section>
+        <Paragraph><Text>This is a confidential document.</Text></Paragraph>
+    </Section>
+</Document>
+```
+
+### 注意事项
+
+1. **位置**：`<Watermark>` 应作为 `<Document>` 的直接子节点，放在 `<Section>` 之前。
+2. **唯一性**：每个文档只需一个 `<Watermark>` 组件，它会自动应用到所有页面。
+3. **页眉冲突**：水印存储在页眉中，如果文档已有自定义页眉，可能产生冲突。
+4. **透明度**：`opacity` 使用 VML 的 fill opacity，某些旧版 Word 可能显示效果略有差异。
+
+### 常见预设
+
+```jsx
+// 草稿文档
+<Watermark text="DRAFT" color="#808080" fontSize={72} />
+
+// 机密文档
+<Watermark text="机密" color="#FF0000" fontSize={96} opacity={0.2} />
+
+// 样本文档
+<Watermark text="SAMPLE" color="#0066CC" rotation={-45} />
+
+// 内部使用
+<Watermark text="内部资料" color="#999999" fontFamily="微软雅黑" />
+```
+
+- 行为：在文档所有页面（包括首页、偶数页、奇数页）的页眉区域添加半透明斜向文字。
+- 实现状态：已实现（支持文字、颜色、字体、大小、旋转、透明度全属性）。
+
+---
+
 ## 样式系统说明
 
 ### 样式引用机制

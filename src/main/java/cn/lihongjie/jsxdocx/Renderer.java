@@ -73,6 +73,24 @@ import org.apache.poi.xddf.usermodel.chart.*;
 import org.apache.poi.xwpf.usermodel.XWPFChart;
 import org.apache.poi.ss.util.CellRangeAddress;
 
+// Watermark imports (VML)
+import com.microsoft.schemas.vml.CTFill;
+import com.microsoft.schemas.vml.CTFormulas;
+import com.microsoft.schemas.vml.CTGroup;
+import com.microsoft.schemas.vml.CTH;
+import com.microsoft.schemas.vml.CTHandles;
+import com.microsoft.schemas.vml.CTPath;
+import com.microsoft.schemas.vml.CTShape;
+import com.microsoft.schemas.vml.CTShapetype;
+import com.microsoft.schemas.vml.CTTextPath;
+import com.microsoft.schemas.vml.STExt;
+import com.microsoft.schemas.office.office.CTLock;
+import com.microsoft.schemas.office.office.STConnectType;
+import org.openxmlformats.schemas.officeDocument.x2006.sharedTypes.STTrueFalse;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTP;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPicture;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTBody;
+
 public class Renderer {
 
     private XWPFDocument currentDocument;
@@ -642,6 +660,13 @@ public class Renderer {
                 XWPFDocument chartDoc = findDocument(parent);
                 if (chartDoc != null) {
                     renderChart(chartDoc, node);
+                }
+                break;
+            case "watermark":
+                // Find the document to add watermark to
+                XWPFDocument watermarkDoc = findDocument(parent);
+                if (watermarkDoc != null) {
+                    renderWatermark(watermarkDoc, node);
                 }
                 break;
             default:
@@ -1979,5 +2004,221 @@ public class Renderer {
         }
         
         return result;
+    }
+    
+    /**
+     * Renders a watermark component into the document.
+     * Watermarks are text overlays that appear behind the main content on every page.
+     * 
+     * Props supported:
+     * - text: String - The watermark text. Required.
+     * - color: String - Text color in hex format (e.g., "#CCCCCC"). Default: "#C0C0C0" (light gray)
+     * - fontFamily: String - Font family name. Default: "Cambria"
+     * - fontSize: Number - Font size in points. Default: 88
+     * - rotation: Number - Rotation angle in degrees (clockwise). Default: -45 (diagonal)
+     * - opacity: Number - Opacity from 0.0 to 1.0. Default: 0.5
+     */
+    private void renderWatermark(XWPFDocument doc, VNode node) {
+        try {
+            // Extract props
+            String text = node.getProps().get("text") != null 
+                ? String.valueOf(node.getProps().get("text")) : "WATERMARK";
+            if ("null".equals(text) || text.isEmpty()) {
+                text = "WATERMARK";
+            }
+            
+            String color = node.getProps().get("color") != null 
+                ? String.valueOf(node.getProps().get("color")) : "#C0C0C0";
+            if (color.startsWith("#")) {
+                color = color.substring(1); // Remove # prefix
+            }
+            if ("null".equals(color) || color.isEmpty()) {
+                color = "C0C0C0";
+            }
+            // Convert hex to VML color format (silver, gray, or #RRGGBB)
+            String vmlColor = "#" + color.toUpperCase();
+            
+            String fontFamily = node.getProps().get("fontFamily") != null 
+                ? String.valueOf(node.getProps().get("fontFamily")) : "Cambria";
+            if ("null".equals(fontFamily) || fontFamily.isEmpty()) {
+                fontFamily = "Cambria";
+            }
+            
+            int fontSize = toInt(node.getProps().get("fontSize"), 88);
+            int rotation = toInt(node.getProps().get("rotation"), -45);
+            double opacity = 0.5;
+            Object opacityObj = node.getProps().get("opacity");
+            if (opacityObj instanceof Number) {
+                opacity = ((Number) opacityObj).doubleValue();
+            } else if (opacityObj != null) {
+                try {
+                    opacity = Double.parseDouble(String.valueOf(opacityObj));
+                } catch (NumberFormatException ignored) {}
+            }
+            // Clamp opacity between 0 and 1
+            opacity = Math.max(0.0, Math.min(1.0, opacity));
+            
+            // Create HeaderFooterPolicy if not exists
+            XWPFHeaderFooterPolicy policy = doc.getHeaderFooterPolicy();
+            if (policy == null) {
+                policy = doc.createHeaderFooterPolicy();
+            }
+            
+            // Create watermark in all header types (DEFAULT, FIRST, EVEN)
+            createWatermarkHeader(doc, policy, STHdrFtr.DEFAULT, text, vmlColor, fontFamily, fontSize, rotation, opacity, 1);
+            createWatermarkHeader(doc, policy, STHdrFtr.FIRST, text, vmlColor, fontFamily, fontSize, rotation, opacity, 2);
+            createWatermarkHeader(doc, policy, STHdrFtr.EVEN, text, vmlColor, fontFamily, fontSize, rotation, opacity, 3);
+            
+        } catch (Exception e) {
+            System.err.println("Error creating watermark: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    private void createWatermarkHeader(XWPFDocument doc, XWPFHeaderFooterPolicy policy, STHdrFtr.Enum headerType,
+                                       String text, String color, String fontFamily, 
+                                       int fontSize, int rotation, double opacity, int idx) throws Exception {
+        // Create the watermark paragraph with VML shape
+        XWPFParagraph watermarkPara = createWatermarkParagraph(doc, policy, text, color, fontFamily, fontSize, rotation, opacity, idx);
+        
+        // Create the header with this paragraph
+        XWPFParagraph[] pars = new XWPFParagraph[1];
+        pars[0] = watermarkPara;
+        policy.createHeader(headerType, pars);
+    }
+    
+    private XWPFParagraph createWatermarkParagraph(XWPFDocument doc, XWPFHeaderFooterPolicy policy, String text, 
+                                                   String color, String fontFamily, int fontSize,
+                                                   int rotation, double opacity, int idx) {
+        // Create a CTP (paragraph XML) with VML watermark
+        CTP p = CTP.Factory.newInstance();
+        
+        // Get rsid from document body if available
+        CTBody ctBody = doc.getDocument().getBody();
+        byte[] rsidr = null;
+        byte[] rsidrdefault = null;
+        if (ctBody.sizeOfPArray() > 0) {
+            CTP ctp = ctBody.getPArray(0);
+            rsidr = ctp.getRsidR();
+            rsidrdefault = ctp.getRsidRDefault();
+        }
+        if (rsidr != null) p.setRsidP(rsidr);
+        if (rsidrdefault != null) p.setRsidRDefault(rsidrdefault);
+        
+        // Add paragraph properties
+        CTPPr pPr = p.addNewPPr();
+        pPr.addNewPStyle().setVal("Header");
+        
+        // Add run with picture (VML)
+        CTR r = p.addNewR();
+        CTRPr rPr = r.addNewRPr();
+        rPr.addNewNoProof();
+        
+        // Create VML picture
+        CTPicture pict = r.addNewPict();
+        CTGroup group = CTGroup.Factory.newInstance();
+        
+        // Create shapetype (text wave shape type #136)
+        CTShapetype shapetype = group.addNewShapetype();
+        shapetype.setId("_x0000_t136");
+        shapetype.setCoordsize("1600,21600");
+        shapetype.setSpt(136);
+        shapetype.setAdj("10800");
+        shapetype.setPath2("m@7,0l@8,0m@5,21600l@6,21600e");
+        
+        // Add formulas for the shape type
+        CTFormulas formulas = shapetype.addNewFormulas();
+        formulas.addNewF().setEqn("sum #0 0 10800");
+        formulas.addNewF().setEqn("prod #0 2 1");
+        formulas.addNewF().setEqn("sum 21600 0 @1");
+        formulas.addNewF().setEqn("sum 0 0 @2");
+        formulas.addNewF().setEqn("sum 21600 0 @3");
+        formulas.addNewF().setEqn("if @0 @3 0");
+        formulas.addNewF().setEqn("if @0 21600 @1");
+        formulas.addNewF().setEqn("if @0 0 @2");
+        formulas.addNewF().setEqn("if @0 @4 21600");
+        formulas.addNewF().setEqn("mid @5 @6");
+        formulas.addNewF().setEqn("mid @8 @5");
+        formulas.addNewF().setEqn("mid @7 @8");
+        formulas.addNewF().setEqn("mid @6 @7");
+        formulas.addNewF().setEqn("sum @6 0 @5");
+        
+        // Add path
+        CTPath path = shapetype.addNewPath();
+        path.setTextpathok(STTrueFalse.T);
+        path.setConnecttype(STConnectType.CUSTOM);
+        path.setConnectlocs("@9,0;@10,10800;@11,21600;@12,10800");
+        path.setConnectangles("270,180,90,0");
+        
+        // Add textpath to shapetype
+        CTTextPath shapeTypeTextPath = shapetype.addNewTextpath();
+        shapeTypeTextPath.setOn(STTrueFalse.T);
+        shapeTypeTextPath.setFitshape(STTrueFalse.T);
+        
+        // Add handles
+        CTHandles handles = shapetype.addNewHandles();
+        CTH h = handles.addNewH();
+        h.setPosition("#0,bottomRight");
+        h.setXrange("6629,14971");
+        
+        // Add lock
+        CTLock lock = shapetype.addNewLock();
+        lock.setExt(STExt.EDIT);
+        
+        // Create the actual shape
+        CTShape shape = group.addNewShape();
+        shape.setId("PowerPlusWaterMarkObject" + idx);
+        shape.setSpid("_x0000_s102" + (4 + idx));
+        shape.setType("#_x0000_t136");
+        
+        // Calculate style based on rotation and opacity
+        // Width and height depend on font size
+        int width = Math.max(200, fontSize * 5); // pt
+        int height = Math.max(100, (int)(fontSize * 2.5)); // pt
+        
+        // Build style string
+        StringBuilder style = new StringBuilder();
+        style.append("position:absolute;");
+        style.append("margin-left:0;margin-top:0;");
+        style.append("width:").append(width).append("pt;");
+        style.append("height:").append(height).append("pt;");
+        style.append("z-index:-251654144;");
+        style.append("mso-wrap-edited:f;");
+        style.append("mso-position-horizontal:center;");
+        style.append("mso-position-horizontal-relative:margin;");
+        style.append("mso-position-vertical:center;");
+        style.append("mso-position-vertical-relative:margin;");
+        if (rotation != 0) {
+            style.append("rotation:").append(rotation).append(";");
+        }
+        
+        shape.setStyle(style.toString());
+        
+        // Wrap coordinates (standard watermark wrap)
+        shape.setWrapcoords("616 5068 390 16297 39 16921 -39 17155 7265 17545 7186 17467 -39 17467 18904 17467 10507 17467 8710 17545 18904 17077 18787 16843 18358 16297 18279 12554 19178 12476 20701 11774 20779 11228 21131 10059 21248 8811 21248 7563 20975 6316 20935 5380 19490 5146 14022 5068 2616 5068");
+        
+        // Set fill color with opacity
+        if (opacity < 1.0) {
+            // For semi-transparent, use fill with opacity
+            shape.setFillcolor(color);
+            shape.setStroked(STTrueFalse.FALSE);
+            // VML opacity uses percentage string or decimal
+            CTFill fill = shape.addNewFill();
+            fill.setOpacity(String.valueOf((int)(opacity * 65536)) + "f"); // VML uses 65536 as 100%
+        } else {
+            shape.setFillcolor(color);
+            shape.setStroked(STTrueFalse.FALSE);
+        }
+        
+        // Add textpath to shape
+        CTTextPath shapeTextPath = shape.addNewTextpath();
+        shapeTextPath.setStyle("font-family:\"" + fontFamily + "\";font-size:" + fontSize + "pt");
+        shapeTextPath.setString(text);
+        
+        // Set the VML group to the picture
+        pict.set(group);
+        
+        // Return as XWPFParagraph
+        return new XWPFParagraph(p, doc);
     }
 }
