@@ -31,6 +31,8 @@ const Watermark = 'watermark';
 const Comment = 'comment';
 const Footnote = 'footnote';
 const Endnote = 'endnote';
+const Bookmark = 'bookmark';
+const BookmarkRef = 'bookmarkref';
 
 // 2. JSX runtime implementations
 // Classic: React.createElement(...)

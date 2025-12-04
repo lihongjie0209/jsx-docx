@@ -934,6 +934,166 @@ const data = [
 
 ---
 
+## `<Bookmark>`
+在文档中创建命名位置标记，可被交叉引用。书签可以包裹任意内容，用于标记文档中的特定位置或内容区域。
+
+### 属性
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `name` | string | **必填** | 书签的唯一标识名称 |
+
+### 子节点
+- **可选**：可包含任意行内元素（`<Text>`、`<Link>` 等）
+
+### 使用示例
+
+```jsx
+// 基础书签
+<Paragraph>
+    <Bookmark name="introduction">
+        <Text>第一章：引言</Text>
+    </Bookmark>
+</Paragraph>
+
+// 多个书签
+<Paragraph>
+    <Bookmark name="section1">
+        <Text>1.1 背景介绍</Text>
+    </Bookmark>
+</Paragraph>
+<Paragraph>
+    <Bookmark name="section2">
+        <Text>1.2 研究目的</Text>
+    </Bookmark>
+</Paragraph>
+
+// 空书签（仅标记位置）
+<Paragraph>
+    <Bookmark name="returnPoint" />
+    <Text>可返回此处继续阅读</Text>
+</Paragraph>
+```
+
+### 注意事项
+1. **位置**：`<Bookmark>` 应放在 `<Paragraph>` 内部。
+2. **唯一性**：书签名称在文档中应该唯一，重复名称可能导致交叉引用混乱。
+3. **命名规范**：建议使用有意义的名称，如 `chapter1`、`table_results`、`figure_diagram` 等。
+4. **与标题配合**：常与 `<Heading>` 内容配合使用，方便创建目录或交叉引用。
+
+- 行为：在文档中创建书签标记（开始和结束标记），可被 `<BookmarkRef>` 引用。
+- 实现状态：已实现。
+
+---
+
+## `<BookmarkRef>`
+创建指向书签的交叉引用。可显示页码、书签内容或自定义文本，并可选择性地创建超链接。
+
+### 属性
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `name` | string | **必填** | 要引用的书签名称 |
+| `type` | string | "pageref" | 引用类型：`pageref`（页码）、`ref`（内容）、`text`（自定义文本） |
+| `text` | string | "" | 当 type="text" 时的显示文本 |
+| `hyperlink` | boolean | true | 是否创建可点击的超链接 |
+
+### 引用类型说明
+
+| type | 说明 | 显示内容 |
+|------|------|----------|
+| `pageref` | 页码引用 | 书签所在页码（如 "5"） |
+| `ref` | 内容引用 | 书签包裹的文本内容 |
+| `text` | 自定义文本 | `text` 属性指定的文本 |
+
+### 子节点
+- **无**：BookmarkRef 是自闭合组件
+
+### 使用示例
+
+```jsx
+// 页码引用（默认）
+<Paragraph>
+    <Text>详见第 </Text>
+    <BookmarkRef name="chapter2" type="pageref" />
+    <Text> 页</Text>
+</Paragraph>
+
+// 内容引用
+<Paragraph>
+    <Text>如 "</Text>
+    <BookmarkRef name="important_note" type="ref" />
+    <Text>" 所述</Text>
+</Paragraph>
+
+// 自定义文本超链接
+<Paragraph>
+    <Text>点击</Text>
+    <BookmarkRef name="appendix" type="text" text="此处" />
+    <Text>查看附录</Text>
+</Paragraph>
+
+// 不带超链接的页码
+<Paragraph>
+    <Text>表格位于第 </Text>
+    <BookmarkRef name="table1" type="pageref" hyperlink={false} />
+    <Text> 页</Text>
+</Paragraph>
+```
+
+### 综合示例：文档内部导航
+
+```jsx
+<Document>
+  <Section>
+    {/* 目录区域 */}
+    <Paragraph>
+      <Text bold={true}>目录</Text>
+    </Paragraph>
+    <Paragraph>
+      <Text>第一章 </Text>
+      <BookmarkRef name="ch1" type="pageref" />
+    </Paragraph>
+    <Paragraph>
+      <Text>第二章 </Text>
+      <BookmarkRef name="ch2" type="pageref" />
+    </Paragraph>
+    
+    {/* 正文区域 */}
+    <Paragraph>
+      <Bookmark name="ch1">
+        <Text bold={true}>第一章：绪论</Text>
+      </Bookmark>
+    </Paragraph>
+    <Paragraph>
+      <Text>正文内容...</Text>
+    </Paragraph>
+    
+    <Paragraph>
+      <Bookmark name="ch2">
+        <Text bold={true}>第二章：方法</Text>
+      </Bookmark>
+    </Paragraph>
+    <Paragraph>
+      <Text>如前文（见第 </Text>
+      <BookmarkRef name="ch1" type="pageref" />
+      <Text> 页）所述...</Text>
+    </Paragraph>
+  </Section>
+</Document>
+```
+
+### 注意事项
+1. **更新字段**：在 Word 中打开文档后，可能需要按 F9 或右键更新字段以显示正确的页码。
+2. **引用有效性**：确保引用的书签名称存在，否则会显示错误信息。
+3. **超链接行为**：当 `hyperlink={true}` 时，Ctrl+点击可跳转到书签位置。
+4. **与目录配合**：可用于创建自定义的交叉引用目录，比 `<Toc>` 更灵活。
+
+- 行为：在文档中插入 PAGEREF 或 REF 字段，显示书签的页码或内容。
+- 实现状态：已实现。
+
+---
+
 ## 样式系统说明
 
 ### 样式引用机制
@@ -971,4 +1131,4 @@ const data = [
 - 更多样式属性（边框、阴影、字符间距等）
 - 样式继承链（basedOn 的完整支持）
 - 主题色与样式模板绑定
-- 书签与交叉引用、条件格式等
+- 条件格式等

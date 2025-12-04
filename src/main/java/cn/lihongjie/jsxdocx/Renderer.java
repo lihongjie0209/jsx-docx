@@ -94,6 +94,9 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTBody;
 // Comment imports
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTMarkupRange;
 
+// Bookmark imports
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTBookmark;
+
 public class Renderer {
 
     private XWPFDocument currentDocument;
@@ -689,6 +692,18 @@ public class Renderer {
                 // Endnote adds a reference mark and content at document end
                 if (parent instanceof XWPFParagraph) {
                     renderEndnote((XWPFParagraph) parent, node);
+                }
+                break;
+            case "bookmark":
+                // Bookmark defines a named location in the document
+                if (parent instanceof XWPFParagraph) {
+                    renderBookmark((XWPFParagraph) parent, node);
+                }
+                break;
+            case "bookmarkref":
+                // BookmarkRef creates a cross-reference to a bookmark
+                if (parent instanceof XWPFParagraph) {
+                    renderBookmarkRef((XWPFParagraph) parent, node);
                 }
                 break;
             default:
@@ -2410,6 +2425,131 @@ public class Renderer {
             
         } catch (Exception e) {
             System.err.println("Error: Failed to render Endnote: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    // Static counter for unique bookmark IDs
+    private static long bookmarkIdCounter = 0;
+
+    /**
+     * Render a Bookmark component that defines a named location in the document
+     * Props:
+     *   - name: String (required) - Unique bookmark name/identifier
+     * Children are rendered within the bookmark range (between start and end markers)
+     */
+    private void renderBookmark(XWPFParagraph para, VNode node) {
+        try {
+            // Get props
+            String bookmarkName = String.valueOf(node.getProps().get("name"));
+            if (bookmarkName == null || "null".equals(bookmarkName) || bookmarkName.isEmpty()) {
+                System.err.println("Error: Bookmark component requires 'name' property");
+                return;
+            }
+            
+            // Generate unique bookmark ID
+            BigInteger bookmarkId = BigInteger.valueOf(bookmarkIdCounter++);
+            
+            // Get the CTP for low-level XML manipulation
+            CTP ctp = para.getCTP();
+            
+            // Add bookmark start
+            CTBookmark bookmarkStart = ctp.addNewBookmarkStart();
+            bookmarkStart.setName(bookmarkName);
+            bookmarkStart.setId(bookmarkId);
+            
+            // Render children (the bookmarked content)
+            renderChildren(para, node);
+            
+            // Add bookmark end
+            CTMarkupRange bookmarkEnd = ctp.addNewBookmarkEnd();
+            bookmarkEnd.setId(bookmarkId);
+            
+        } catch (Exception e) {
+            System.err.println("Error: Failed to render Bookmark: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Render a BookmarkRef component that creates a cross-reference to a bookmark
+     * Props:
+     *   - name: String (required) - Name of the bookmark to reference
+     *   - type: String (optional) - Reference type: "pageref" (default), "ref", or "text"
+     *     - pageref: Shows the page number where the bookmark is located
+     *     - ref: Shows the bookmarked content
+     *     - text: Shows custom display text (requires 'text' prop)
+     *   - text: String (optional) - Display text for type="text"
+     *   - hyperlink: boolean (optional, default true) - Whether to make the reference a hyperlink
+     */
+    private void renderBookmarkRef(XWPFParagraph para, VNode node) {
+        try {
+            // Get props
+            String bookmarkName = String.valueOf(node.getProps().get("name"));
+            if (bookmarkName == null || "null".equals(bookmarkName) || bookmarkName.isEmpty()) {
+                System.err.println("Error: BookmarkRef component requires 'name' property");
+                return;
+            }
+            
+            String refType = String.valueOf(node.getProps().get("type"));
+            if (refType == null || "null".equals(refType)) {
+                refType = "pageref";
+            }
+            
+            boolean hyperlink = !"false".equals(String.valueOf(node.getProps().get("hyperlink")));
+            
+            String displayText = String.valueOf(node.getProps().get("text"));
+            if (displayText == null || "null".equals(displayText)) {
+                displayText = "";
+            }
+            
+            // Get the CTP for low-level XML manipulation
+            CTP ctp = para.getCTP();
+            
+            // Build the field instruction based on reference type
+            String fieldInstruction;
+            String placeholder;
+            
+            switch (refType.toLowerCase()) {
+                case "ref":
+                    // REF field shows the bookmark content
+                    fieldInstruction = " REF " + bookmarkName + (hyperlink ? " \\h " : " ");
+                    placeholder = "[REF]";
+                    break;
+                case "text":
+                    // Text type uses custom display text
+                    if (displayText.isEmpty()) {
+                        displayText = bookmarkName;
+                    }
+                    fieldInstruction = " REF " + bookmarkName + (hyperlink ? " \\h " : " ");
+                    placeholder = displayText;
+                    break;
+                case "pageref":
+                default:
+                    // PAGEREF field shows the page number
+                    fieldInstruction = " PAGEREF " + bookmarkName + (hyperlink ? " \\h " : " ");
+                    placeholder = "[#]";
+                    break;
+            }
+            
+            // Create field structure: BEGIN - INSTR - SEPARATE - result - END
+            CTR run1 = ctp.addNewR();
+            run1.addNewFldChar().setFldCharType(STFldCharType.BEGIN);
+            
+            CTR run2 = ctp.addNewR();
+            run2.addNewInstrText().setStringValue(fieldInstruction);
+            
+            CTR run3 = ctp.addNewR();
+            run3.addNewFldChar().setFldCharType(STFldCharType.SEPARATE);
+            
+            CTR run4 = ctp.addNewR();
+            run4.addNewT().setStringValue(placeholder);
+            
+            CTR run5 = ctp.addNewR();
+            run5.addNewFldChar().setFldCharType(STFldCharType.END);
+            
+        } catch (Exception e) {
+            System.err.println("Error: Failed to render BookmarkRef: " + e.getMessage());
             e.printStackTrace();
         }
     }
