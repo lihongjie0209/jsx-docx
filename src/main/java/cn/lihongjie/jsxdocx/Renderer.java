@@ -2514,7 +2514,7 @@ public class Renderer {
                 case "ref":
                     // REF field shows the bookmark content
                     fieldInstruction = " REF " + bookmarkName + (hyperlink ? " \\h " : " ");
-                    placeholder = "[REF]";
+                    placeholder = "";
                     break;
                 case "text":
                     // Text type uses custom display text
@@ -2528,7 +2528,7 @@ public class Renderer {
                 default:
                     // PAGEREF field shows the page number
                     fieldInstruction = " PAGEREF " + bookmarkName + (hyperlink ? " \\h " : " ");
-                    placeholder = "[#]";
+                    placeholder = "1";  // Default placeholder, will be updated when document opens
                     break;
             }
             
