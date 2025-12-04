@@ -638,13 +638,38 @@ public class Renderer {
                 renderInclude(parent, node);
                 break;
             case "chart":
-                if (parent instanceof XWPFDocument) {
-                    renderChart((XWPFDocument) parent, node);
+                // Find the document to add chart to
+                XWPFDocument chartDoc = findDocument(parent);
+                if (chartDoc != null) {
+                    renderChart(chartDoc, node);
                 }
                 break;
             default:
-                System.err.println("Unknown component type: " + type);
+                // Handle Fragment and other unknown types by rendering children
+                if (type != null && (type.contains("Fragment") || type.contains("Symbol"))) {
+                    // Fragment: transparently render children
+                    renderChildren(parent, node);
+                } else {
+                    System.err.println("Unknown component type: " + type);
+                }
         }
+    }
+    
+    private XWPFDocument findDocument(Object obj) {
+        if (obj instanceof XWPFDocument) {
+            return (XWPFDocument) obj;
+        } else if (obj instanceof XWPFParagraph) {
+            return ((XWPFParagraph) obj).getDocument();
+        } else if (obj instanceof XWPFTableCell) {
+            return ((XWPFTableCell) obj).getXWPFDocument();
+        } else if (obj instanceof XWPFTable) {
+            return ((XWPFTable) obj).getBody().getXWPFDocument();
+        } else if (obj instanceof XWPFHeader) {
+            return ((XWPFHeader) obj).getXWPFDocument();
+        } else if (obj instanceof XWPFFooter) {
+            return ((XWPFFooter) obj).getXWPFDocument();
+        }
+        return null;
     }
 
     private void renderInclude(Object parent, VNode node) {
