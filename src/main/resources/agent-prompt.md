@@ -199,6 +199,170 @@ Document (root)
 </Document>
 ```
 
+## Properties Quick Reference
+
+### Section
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| pageSize | string/object | "A4" | "A4", "LETTER", "LEGAL" or {width, height} in twips |
+| orientation | string | "portrait" | "portrait" or "landscape" |
+| marginTop | number | 1440 | Top margin in twips |
+| marginBottom | number | 1440 | Bottom margin in twips |
+| marginLeft | number | 1800 | Left margin in twips |
+| marginRight | number | 1800 | Right margin in twips |
+
+### Paragraph
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| align | string | "LEFT" | "LEFT", "CENTER", "RIGHT", "JUSTIFY" |
+| lineSpacing | number | 1.0 | Line spacing multiplier (1.5 = 150%) |
+| spaceBefore | number | 0 | Space before paragraph in twips |
+| spaceAfter | number | 0 | Space after paragraph in twips |
+| indentLeft | number | 0 | Left indent in twips |
+| indentRight | number | 0 | Right indent in twips |
+| indentFirstLine | number | 0 | First line indent in twips |
+| styleId | string | - | Reference to defined style |
+
+### Text
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| bold | boolean | false | Bold text |
+| italic | boolean | false | Italic text |
+| underline | boolean | false | Underlined text |
+| strike | boolean | false | Strikethrough text |
+| fontSize | number | 11 | Font size in points |
+| fontFamily | string | "Calibri" | Font family name |
+| color | string | "#000000" | Text color in hex |
+| highlight | string | - | Highlight color ("yellow", "green", etc.) |
+| superscript | boolean | false | Superscript text |
+| subscript | boolean | false | Subscript text |
+| styleId | string | - | Reference to character style |
+
+### Heading
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| level | number | 1 | Heading level 1-9 |
+
+### Table
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| width | number | auto | Table width in twips |
+| align | string | "LEFT" | "LEFT", "CENTER", "RIGHT" |
+| borders | boolean | true | Show table borders |
+| styleId | string | - | Reference to table style |
+
+### Row
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| header | boolean | false | Mark as header row (repeats on page break) |
+
+### Cell
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| width | number | auto | Cell width in twips |
+| backgroundColor | string | - | Background color in hex |
+| verticalAlign | string | "top" | "top", "center", "bottom" |
+| colspan | number | 1 | Column span |
+| rowspan | number | 1 | Row span |
+| borders | object | - | {top, bottom, left, right} border config |
+
+### BulletedList
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| bulletChar | string | "•" | Bullet character (Unicode or Wingdings) |
+| bulletFont | string | - | Font for bullet ("Wingdings", "Symbol") |
+| indentLeft | number | 420 | Base indent in twips |
+| indentIncrement | number | 420 | Indent increase per level |
+| indentHanging | number | 360 | Hanging indent in twips |
+
+### NumberedList
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| format | string | "decimal" | "decimal", "upperLetter", "lowerLetter", "upperRoman", "lowerRoman" |
+| start | number | 1 | Starting number |
+
+### ListItem
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| level | number | 0 | Nesting level (0-8) |
+
+### Image
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| src | string | **required** | File path, URL, or base64 data URI |
+| width | number | auto | Width in points |
+| height | number | auto | Height in points |
+| alt | string | - | Alternative text |
+
+### Link
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| href | string | **required** | URL or bookmark reference |
+
+### Toc
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| title | string | "目录" | TOC title |
+| maxLevel | number | 3 | Maximum heading level to include (1-9) |
+| hyperlink | boolean | true | Make entries clickable |
+| showPageNumbers | boolean | true | Show page numbers |
+
+### Header / Footer
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| type | string | "DEFAULT" | "DEFAULT", "FIRST", "EVEN" |
+
+### Bookmark
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| name | string | **required** | Unique bookmark identifier |
+
+### BookmarkRef
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| name | string | **required** | Bookmark name to reference |
+| type | string | "pageref" | "pageref" (page#), "ref" (content), "text" (custom) |
+| text | string | - | Display text when type="text" |
+| hyperlink | boolean | true | Make reference clickable |
+
+### Footnote / Endnote
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| text | string | **required** | Note content |
+
+### Comment
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| author | string | "" | Comment author name |
+| text | string | **required** | Comment text |
+
+### Chart
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| type | string | "bar" | "bar", "column", "line", "area", "pie" |
+| title | string | - | Chart title |
+| width | number | 400 | Width in points |
+| height | number | 300 | Height in points |
+| categories | array | **required** | X-axis labels ["Q1", "Q2", ...] |
+| series | array | **required** | [{name, values, color?}, ...] |
+
+### Watermark
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| text | string | **required** | Watermark text |
+| color | string | "#C0C0C0" | Text color in hex |
+| fontSize | number | 72 | Font size in points |
+| rotation | number | -45 | Rotation angle in degrees |
+| fontFamily | string | "Calibri" | Font family |
+
+### Style
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| styleId | string | **required** | Unique style identifier |
+| type | string | "paragraph" | "paragraph", "character", "table" |
+| basedOn | string | - | Parent style ID to inherit from |
+| *(plus all Text/Paragraph properties)* | | | |
+
 ## JavaScript in JSX
 
 You can use JavaScript expressions and logic:
