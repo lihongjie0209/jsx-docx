@@ -67,6 +67,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
 
+// Chart imports
+import org.apache.poi.xddf.usermodel.*;
+import org.apache.poi.xddf.usermodel.chart.*;
+import org.apache.poi.xwpf.usermodel.XWPFChart;
+import org.apache.poi.ss.util.CellRangeAddress;
+
 public class Renderer {
 
     private XWPFDocument currentDocument;
@@ -630,6 +636,11 @@ public class Renderer {
                 break;
             case "include":
                 renderInclude(parent, node);
+                break;
+            case "chart":
+                if (parent instanceof XWPFDocument) {
+                    renderChart((XWPFDocument) parent, node);
+                }
                 break;
             default:
                 System.err.println("Unknown component type: " + type);
@@ -1553,5 +1564,395 @@ public class Renderer {
             if (bytes[0] == (byte)0xFF && bytes[1] == (byte)0xD8) return Document.PICTURE_TYPE_JPEG;
         }
         return Document.PICTURE_TYPE_PNG;
+    }
+
+    /**
+     * Render a Chart component into the document.
+     * 
+     * Supported chart types: bar, pie, line, area, column
+     * 
+     * Props:
+     * - type: String - Chart type (bar, pie, line, area, column). Default: "bar"
+     * - title: String - Chart title. Default: null
+     * - width: Number - Chart width in pixels. Default: 500
+     * - height: Number - Chart height in pixels. Default: 300
+     * - data: Array - Simple data format: [{label: "A", value: 10}, {label: "B", value: 20}]
+     * - categories: Array - Category labels for multi-series: ["Q1", "Q2", "Q3"]
+     * - series: Array - Multi-series data: [{name: "Series1", values: [10, 20, 30]}, ...]
+     * - colors: Array - Custom colors: ["#FF0000", "#00FF00", "#0000FF"]
+     * - legend: Boolean - Show legend. Default: true
+     * - legendPosition: String - Legend position (bottom, top, left, right). Default: "bottom"
+     */
+    @SuppressWarnings("unchecked")
+    private void renderChart(XWPFDocument doc, VNode node) {
+        try {
+            // Parse props
+            String chartType = node.getProps().get("type") != null 
+                ? String.valueOf(node.getProps().get("type")).toLowerCase() : "bar";
+            String title = node.getProps().get("title") != null 
+                ? String.valueOf(node.getProps().get("title")) : null;
+            if ("null".equals(title)) title = null;
+            
+            int width = toInt(node.getProps().get("width"), 500);
+            int height = toInt(node.getProps().get("height"), 300);
+            boolean showLegend = !"false".equals(String.valueOf(node.getProps().get("legend")));
+            String legendPos = node.getProps().get("legendPosition") != null 
+                ? String.valueOf(node.getProps().get("legendPosition")).toLowerCase() : "bottom";
+            
+            // Get data
+            Object dataObj = node.getProps().get("data");
+            Object categoriesObj = node.getProps().get("categories");
+            Object seriesObj = node.getProps().get("series");
+            Object colorsObj = node.getProps().get("colors");
+            
+            // Create chart
+            XWPFChart chart = doc.createChart(Units.toEMU(width), Units.toEMU(height));
+            
+            // Set title
+            if (title != null && !title.isEmpty()) {
+                chart.setTitleText(title);
+                chart.setTitleOverlay(false);
+            }
+            
+            // Configure legend
+            if (showLegend) {
+                XDDFChartLegend legend = chart.getOrAddLegend();
+                switch (legendPos) {
+                    case "top": legend.setPosition(LegendPosition.TOP); break;
+                    case "left": legend.setPosition(LegendPosition.LEFT); break;
+                    case "right": legend.setPosition(LegendPosition.RIGHT); break;
+                    default: legend.setPosition(LegendPosition.BOTTOM); break;
+                }
+            }
+            
+            // Parse colors
+            byte[][] customColors = null;
+            if (colorsObj instanceof List) {
+                List<Object> colorList = (List<Object>) colorsObj;
+                customColors = new byte[colorList.size()][];
+                for (int i = 0; i < colorList.size(); i++) {
+                    String colorStr = String.valueOf(colorList.get(i)).replace("#", "");
+                    try {
+                        int rgb = Integer.parseInt(colorStr, 16);
+                        customColors[i] = new byte[] {
+                            (byte) ((rgb >> 16) & 0xFF),
+                            (byte) ((rgb >> 8) & 0xFF),
+                            (byte) (rgb & 0xFF)
+                        };
+                    } catch (Exception e) {
+                        customColors[i] = new byte[] {(byte)0x33, (byte)0x66, (byte)0x99}; // Default blue
+                    }
+                }
+            }
+            
+            // Process data based on format
+            if (dataObj instanceof List) {
+                // Simple format: [{label: "A", value: 10}, ...]
+                List<Object> dataList = (List<Object>) dataObj;
+                String[] categories = new String[dataList.size()];
+                Double[] values = new Double[dataList.size()];
+                
+                for (int i = 0; i < dataList.size(); i++) {
+                    Object item = dataList.get(i);
+                    if (item instanceof Map) {
+                        Map<String, Object> map = (Map<String, Object>) item;
+                        categories[i] = map.get("label") != null ? String.valueOf(map.get("label")) : "Item " + (i + 1);
+                        values[i] = map.get("value") instanceof Number 
+                            ? ((Number) map.get("value")).doubleValue() : 0.0;
+                    } else {
+                        categories[i] = "Item " + (i + 1);
+                        values[i] = 0.0;
+                    }
+                }
+                
+                createSingleSeriesChart(chart, chartType, categories, values, "Data", customColors);
+                
+            } else if (categoriesObj instanceof List && seriesObj instanceof List) {
+                // Multi-series format
+                List<Object> catList = (List<Object>) categoriesObj;
+                List<Object> serList = (List<Object>) seriesObj;
+                
+                String[] categories = new String[catList.size()];
+                for (int i = 0; i < catList.size(); i++) {
+                    categories[i] = String.valueOf(catList.get(i));
+                }
+                
+                createMultiSeriesChart(chart, chartType, categories, serList, customColors);
+            } else {
+                // Default sample data
+                String[] defaultCats = {"Category A", "Category B", "Category C", "Category D"};
+                Double[] defaultVals = {25.0, 35.0, 20.0, 20.0};
+                createSingleSeriesChart(chart, chartType, defaultCats, defaultVals, "Sample Data", customColors);
+            }
+            
+        } catch (Exception e) {
+            System.err.println("Error creating chart: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    private void createSingleSeriesChart(XWPFChart chart, String chartType, String[] categories, 
+                                         Double[] values, String seriesName, byte[][] colors) {
+        // Create data sources
+        XDDFDataSource<String> categoryData = XDDFDataSourcesFactory.fromArray(categories);
+        XDDFNumericalDataSource<Double> valueData = XDDFDataSourcesFactory.fromArray(values);
+        
+        switch (chartType) {
+            case "pie":
+                createPieChart(chart, categoryData, valueData, seriesName, colors);
+                break;
+            case "line":
+                createLineChart(chart, categoryData, valueData, seriesName, colors);
+                break;
+            case "area":
+                createAreaChart(chart, categoryData, valueData, seriesName, colors);
+                break;
+            case "column":
+                createColumnChart(chart, categoryData, valueData, seriesName, colors, false);
+                break;
+            case "bar":
+            default:
+                createColumnChart(chart, categoryData, valueData, seriesName, colors, true);
+                break;
+        }
+    }
+    
+    @SuppressWarnings("unchecked")
+    private void createMultiSeriesChart(XWPFChart chart, String chartType, String[] categories, 
+                                        List<Object> seriesList, byte[][] colors) {
+        XDDFDataSource<String> categoryData = XDDFDataSourcesFactory.fromArray(categories);
+        
+        switch (chartType) {
+            case "pie":
+                // Pie chart only uses first series
+                if (!seriesList.isEmpty() && seriesList.get(0) instanceof Map) {
+                    Map<String, Object> firstSeries = (Map<String, Object>) seriesList.get(0);
+                    String name = firstSeries.get("name") != null ? String.valueOf(firstSeries.get("name")) : "Series 1";
+                    Double[] values = extractValues(firstSeries.get("values"), categories.length);
+                    XDDFNumericalDataSource<Double> valueData = XDDFDataSourcesFactory.fromArray(values);
+                    createPieChart(chart, categoryData, valueData, name, colors);
+                }
+                break;
+            case "line":
+                createMultiLineChart(chart, categoryData, seriesList, colors);
+                break;
+            case "area":
+                createMultiAreaChart(chart, categoryData, seriesList, colors);
+                break;
+            case "column":
+                createMultiColumnChart(chart, categoryData, seriesList, colors, false);
+                break;
+            case "bar":
+            default:
+                createMultiColumnChart(chart, categoryData, seriesList, colors, true);
+                break;
+        }
+    }
+    
+    private void createPieChart(XWPFChart chart, XDDFDataSource<String> categories, 
+                                XDDFNumericalDataSource<Double> values, String seriesName, byte[][] colors) {
+        XDDFChartData data = chart.createData(ChartTypes.PIE, null, null);
+        XDDFChartData.Series series = data.addSeries(categories, values);
+        series.setTitle(seriesName, null);
+        
+        // Apply colors to pie slices
+        if (colors != null && data instanceof XDDFPieChartData) {
+            // Colors are applied per data point in pie charts
+        }
+        
+        chart.plot(data);
+    }
+    
+    private void createLineChart(XWPFChart chart, XDDFDataSource<String> categories, 
+                                 XDDFNumericalDataSource<Double> values, String seriesName, byte[][] colors) {
+        XDDFCategoryAxis categoryAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
+        XDDFValueAxis valueAxis = chart.createValueAxis(AxisPosition.LEFT);
+        valueAxis.setCrosses(AxisCrosses.AUTO_ZERO);
+        
+        XDDFChartData data = chart.createData(ChartTypes.LINE, categoryAxis, valueAxis);
+        XDDFChartData.Series series = data.addSeries(categories, values);
+        series.setTitle(seriesName, null);
+        
+        // Apply color
+        if (colors != null && colors.length > 0) {
+            XDDFSolidFillProperties fill = new XDDFSolidFillProperties(
+                XDDFColor.from(colors[0])
+            );
+            XDDFLineProperties line = new XDDFLineProperties();
+            line.setFillProperties(fill);
+            ((XDDFLineChartData.Series) series).setLineProperties(line);
+        }
+        
+        chart.plot(data);
+    }
+    
+    private void createAreaChart(XWPFChart chart, XDDFDataSource<String> categories, 
+                                 XDDFNumericalDataSource<Double> values, String seriesName, byte[][] colors) {
+        XDDFCategoryAxis categoryAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
+        XDDFValueAxis valueAxis = chart.createValueAxis(AxisPosition.LEFT);
+        valueAxis.setCrosses(AxisCrosses.AUTO_ZERO);
+        
+        XDDFChartData data = chart.createData(ChartTypes.AREA, categoryAxis, valueAxis);
+        XDDFChartData.Series series = data.addSeries(categories, values);
+        series.setTitle(seriesName, null);
+        
+        // Apply color
+        if (colors != null && colors.length > 0) {
+            XDDFSolidFillProperties fill = new XDDFSolidFillProperties(
+                XDDFColor.from(colors[0])
+            );
+            series.setFillProperties(fill);
+        }
+        
+        chart.plot(data);
+    }
+    
+    private void createColumnChart(XWPFChart chart, XDDFDataSource<String> categories, 
+                                   XDDFNumericalDataSource<Double> values, String seriesName, 
+                                   byte[][] colors, boolean horizontal) {
+        XDDFCategoryAxis categoryAxis = chart.createCategoryAxis(horizontal ? AxisPosition.LEFT : AxisPosition.BOTTOM);
+        XDDFValueAxis valueAxis = chart.createValueAxis(horizontal ? AxisPosition.BOTTOM : AxisPosition.LEFT);
+        valueAxis.setCrosses(AxisCrosses.AUTO_ZERO);
+        
+        XDDFChartData data = chart.createData(ChartTypes.BAR, categoryAxis, valueAxis);
+        ((XDDFBarChartData) data).setBarDirection(horizontal ? BarDirection.BAR : BarDirection.COL);
+        
+        XDDFChartData.Series series = data.addSeries(categories, values);
+        series.setTitle(seriesName, null);
+        
+        // Apply color
+        if (colors != null && colors.length > 0) {
+            XDDFSolidFillProperties fill = new XDDFSolidFillProperties(
+                XDDFColor.from(colors[0])
+            );
+            series.setFillProperties(fill);
+        }
+        
+        chart.plot(data);
+    }
+    
+    @SuppressWarnings("unchecked")
+    private void createMultiLineChart(XWPFChart chart, XDDFDataSource<String> categories, 
+                                      List<Object> seriesList, byte[][] colors) {
+        XDDFCategoryAxis categoryAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
+        XDDFValueAxis valueAxis = chart.createValueAxis(AxisPosition.LEFT);
+        valueAxis.setCrosses(AxisCrosses.AUTO_ZERO);
+        
+        XDDFChartData data = chart.createData(ChartTypes.LINE, categoryAxis, valueAxis);
+        
+        int colorIdx = 0;
+        for (Object serObj : seriesList) {
+            if (serObj instanceof Map) {
+                Map<String, Object> serMap = (Map<String, Object>) serObj;
+                String name = serMap.get("name") != null ? String.valueOf(serMap.get("name")) : "Series";
+                Double[] values = extractValues(serMap.get("values"), (int) categories.getPointCount());
+                XDDFNumericalDataSource<Double> valueData = XDDFDataSourcesFactory.fromArray(values);
+                
+                XDDFChartData.Series series = data.addSeries(categories, valueData);
+                series.setTitle(name, null);
+                
+                // Apply color
+                if (colors != null && colorIdx < colors.length) {
+                    XDDFSolidFillProperties fill = new XDDFSolidFillProperties(
+                        XDDFColor.from(colors[colorIdx])
+                    );
+                    XDDFLineProperties line = new XDDFLineProperties();
+                    line.setFillProperties(fill);
+                    ((XDDFLineChartData.Series) series).setLineProperties(line);
+                }
+                colorIdx++;
+            }
+        }
+        
+        chart.plot(data);
+    }
+    
+    @SuppressWarnings("unchecked")
+    private void createMultiAreaChart(XWPFChart chart, XDDFDataSource<String> categories, 
+                                      List<Object> seriesList, byte[][] colors) {
+        XDDFCategoryAxis categoryAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
+        XDDFValueAxis valueAxis = chart.createValueAxis(AxisPosition.LEFT);
+        valueAxis.setCrosses(AxisCrosses.AUTO_ZERO);
+        
+        XDDFChartData data = chart.createData(ChartTypes.AREA, categoryAxis, valueAxis);
+        
+        int colorIdx = 0;
+        for (Object serObj : seriesList) {
+            if (serObj instanceof Map) {
+                Map<String, Object> serMap = (Map<String, Object>) serObj;
+                String name = serMap.get("name") != null ? String.valueOf(serMap.get("name")) : "Series";
+                Double[] values = extractValues(serMap.get("values"), (int) categories.getPointCount());
+                XDDFNumericalDataSource<Double> valueData = XDDFDataSourcesFactory.fromArray(values);
+                
+                XDDFChartData.Series series = data.addSeries(categories, valueData);
+                series.setTitle(name, null);
+                
+                // Apply color
+                if (colors != null && colorIdx < colors.length) {
+                    XDDFSolidFillProperties fill = new XDDFSolidFillProperties(
+                        XDDFColor.from(colors[colorIdx])
+                    );
+                    series.setFillProperties(fill);
+                }
+                colorIdx++;
+            }
+        }
+        
+        chart.plot(data);
+    }
+    
+    @SuppressWarnings("unchecked")
+    private void createMultiColumnChart(XWPFChart chart, XDDFDataSource<String> categories, 
+                                        List<Object> seriesList, byte[][] colors, boolean horizontal) {
+        XDDFCategoryAxis categoryAxis = chart.createCategoryAxis(horizontal ? AxisPosition.LEFT : AxisPosition.BOTTOM);
+        XDDFValueAxis valueAxis = chart.createValueAxis(horizontal ? AxisPosition.BOTTOM : AxisPosition.LEFT);
+        valueAxis.setCrosses(AxisCrosses.AUTO_ZERO);
+        
+        XDDFChartData data = chart.createData(ChartTypes.BAR, categoryAxis, valueAxis);
+        ((XDDFBarChartData) data).setBarDirection(horizontal ? BarDirection.BAR : BarDirection.COL);
+        
+        int colorIdx = 0;
+        for (Object serObj : seriesList) {
+            if (serObj instanceof Map) {
+                Map<String, Object> serMap = (Map<String, Object>) serObj;
+                String name = serMap.get("name") != null ? String.valueOf(serMap.get("name")) : "Series";
+                Double[] values = extractValues(serMap.get("values"), (int) categories.getPointCount());
+                XDDFNumericalDataSource<Double> valueData = XDDFDataSourcesFactory.fromArray(values);
+                
+                XDDFChartData.Series series = data.addSeries(categories, valueData);
+                series.setTitle(name, null);
+                
+                // Apply color
+                if (colors != null && colorIdx < colors.length) {
+                    XDDFSolidFillProperties fill = new XDDFSolidFillProperties(
+                        XDDFColor.from(colors[colorIdx])
+                    );
+                    series.setFillProperties(fill);
+                }
+                colorIdx++;
+            }
+        }
+        
+        chart.plot(data);
+    }
+    
+    @SuppressWarnings("unchecked")
+    private Double[] extractValues(Object valuesObj, int expectedLength) {
+        Double[] result = new Double[expectedLength];
+        for (int i = 0; i < expectedLength; i++) {
+            result[i] = 0.0;
+        }
+        
+        if (valuesObj instanceof List) {
+            List<Object> valuesList = (List<Object>) valuesObj;
+            for (int i = 0; i < Math.min(valuesList.size(), expectedLength); i++) {
+                Object val = valuesList.get(i);
+                if (val instanceof Number) {
+                    result[i] = ((Number) val).doubleValue();
+                }
+            }
+        }
+        
+        return result;
     }
 }

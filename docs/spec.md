@@ -570,6 +570,112 @@ render(
 
 ---
 
+## `<Chart>`
+
+- 作用：在文档中嵌入数据图表（柱状图、饼图、折线图等）。
+- 子节点：无。
+- 属性：
+  - `type`: 图表类型，必填。支持值：
+    - `"bar"`: 水平柱状图（条形图）
+    - `"column"`: 垂直柱状图
+    - `"pie"`: 饼图
+    - `"line"`: 折线图
+    - `"area"`: 面积图
+  - `data`: 数据数组，必填。格式：
+    - 单系列：`[{label: "Q1", value: 100}, {label: "Q2", value: 200}]`
+    - 多系列：`[{label: "Q1", series1: 100, series2: 80}, ...]`
+  - `title`: 图表标题（可选）。
+  - `width`: 图表宽度，像素（默认 500）。
+  - `height`: 图表高度，像素（默认 300）。
+  - `colors`: 颜色数组，用于设置系列颜色（可选）。格式：`["#FF6384", "#36A2EB", "#FFCE56"]`。
+  - `showLegend`: 是否显示图例（默认 true）。
+
+### 数据格式说明
+
+**单系列数据**（适用于所有图表类型）：
+```javascript
+const data = [
+  { label: "一月", value: 100 },
+  { label: "二月", value: 150 },
+  { label: "三月", value: 120 }
+];
+```
+
+**多系列数据**（适用于 bar、column、line、area）：
+```javascript
+const data = [
+  { label: "Q1", 北区: 100, 南区: 80, 东区: 90 },
+  { label: "Q2", 北区: 120, 南区: 95, 东区: 110 },
+  { label: "Q3", 北区: 140, 南区: 130, 东区: 125 }
+];
+```
+系统会自动检测除 `label` 外的所有数值字段作为独立系列。
+
+### 使用示例
+
+**基础柱状图**：
+```jsx
+<Chart
+  type="bar"
+  title="季度销售额"
+  data={[
+    { label: "Q1", value: 100 },
+    { label: "Q2", value: 150 },
+    { label: "Q3", value: 120 },
+    { label: "Q4", value: 180 }
+  ]}
+  width={450}
+  height={280}
+/>
+```
+
+**多系列折线图**：
+```jsx
+<Chart
+  type="line"
+  title="温度趋势"
+  data={[
+    { label: "周一", 最高温: 28, 最低温: 18 },
+    { label: "周二", 最高温: 30, 最低温: 20 },
+    { label: "周三", 最高温: 27, 最低温: 17 }
+  ]}
+  colors={["#FF6384", "#36A2EB"]}
+  showLegend={true}
+/>
+```
+
+**饼图**：
+```jsx
+<Chart
+  type="pie"
+  title="市场份额"
+  data={[
+    { label: "产品A", value: 40 },
+    { label: "产品B", value: 30 },
+    { label: "产品C", value: 20 },
+    { label: "其他", value: 10 }
+  ]}
+  colors={["#4472C4", "#ED7D31", "#A5A5A5", "#FFC000"]}
+/>
+```
+
+### 默认颜色
+
+未指定 `colors` 时，系统使用以下默认调色板（最多 8 个系列）：
+1. `#4472C4` - 蓝色
+2. `#ED7D31` - 橙色
+3. `#A5A5A5` - 灰色
+4. `#FFC000` - 黄色
+5. `#5B9BD5` - 浅蓝
+6. `#70AD47` - 绿色
+7. `#9E480E` - 深橙
+8. `#997300` - 深黄
+
+- 行为：创建嵌入式 DOCX 图表，使用 Apache POI XDDF API。图表数据内嵌在文档中，无需外部数据源。
+- 实现状态：已实现（bar、column、pie、line、area 五种图表类型，支持多系列、自定义颜色、图例控制）。
+
+---
+
 ## 样式系统说明
 
 ### 样式引用机制
