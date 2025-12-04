@@ -1,6 +1,7 @@
 package cn.lihongjie.jsxdocx.mcp;
 
 import cn.lihongjie.jsxdocx.Compiler;
+import cn.lihongjie.jsxdocx.DocxToJsx;
 import cn.lihongjie.jsxdocx.JsRuntime;
 import cn.lihongjie.jsxdocx.Renderer;
 import cn.lihongjie.jsxdocx.model.VNode;
@@ -168,6 +169,34 @@ public class McpServer {
         
         docTool.set("inputSchema", inputSchema);
         tools.add(docTool);
+        
+        // Tool 3: docx_to_jsx
+        ObjectNode reverseTool = mapper.createObjectNode();
+        reverseTool.put("name", "docx_to_jsx");
+        reverseTool.put("description", "Convert an existing Word document (.docx) to JSX code. " +
+                "Use this tool when the user wants to reference an existing document as a template. " +
+                "Workflow: 1) Convert the template docx to JSX, 2) Review and understand the structure, " +
+                "3) Modify the JSX as needed (change text, add/remove sections, update styles), " +
+                "4) Generate new document using generate_docx. This is ideal for creating documents " +
+                "based on existing templates or corporate formats.");
+        
+        ObjectNode reverseSchema = mapper.createObjectNode();
+        reverseSchema.put("type", "object");
+        
+        ObjectNode reverseProperties = mapper.createObjectNode();
+        
+        ObjectNode docxPath = mapper.createObjectNode();
+        docxPath.put("type", "string");
+        docxPath.put("description", "Path to the existing .docx file to convert to JSX");
+        reverseProperties.set("docxPath", docxPath);
+        
+        reverseSchema.set("properties", reverseProperties);
+        ArrayNode reverseRequired = mapper.createArrayNode();
+        reverseRequired.add("docxPath");
+        reverseSchema.set("required", reverseRequired);
+        
+        reverseTool.set("inputSchema", reverseSchema);
+        tools.add(reverseTool);
 
         ObjectNode result = mapper.createObjectNode();
         result.set("tools", tools);
@@ -182,56 +211,46 @@ public class McpServer {
         return switch (toolName) {
             case "get_component_spec" -> handleGetComponentSpec(id);
             case "generate_docx" -> handleGenerateDocx(id, arguments);
+            case "docx_to_jsx" -> handleDocxToJsx(id, arguments);
             default -> createErrorResponse(id, -32602, "Unknown tool: " + toolName);
         };
     }
 
     private JsonNode handleGetComponentSpec(JsonNode id) {
         try {
-            // Read agent-prompt.md - optimized prompt for AI agents
-            String promptContent;
+            // Read spec.md - component specification
+            String specContent;
             
             // Try to read from file system first (for development)
-            Path promptPath = Paths.get("src/main/resources/agent-prompt.md");
-            if (Files.exists(promptPath)) {
-                promptContent = Files.readString(promptPath);
+            Path specPath = Paths.get("docs/spec.md");
+            if (Files.exists(specPath)) {
+                specContent = Files.readString(specPath);
             } else {
                 // Fallback to classpath resource (for packaged JAR)
-                InputStream promptStream = getClass().getClassLoader().getResourceAsStream("agent-prompt.md");
-                if (promptStream != null) {
-                    promptContent = new String(promptStream.readAllBytes());
+                InputStream specStream = getClass().getClassLoader().getResourceAsStream("spec.md");
+                if (specStream != null) {
+                    specContent = new String(specStream.readAllBytes());
                 } else {
-                    // Final fallback: try spec.md
-                    Path specPath = Paths.get("docs/spec.md");
-                    if (Files.exists(specPath)) {
-                        promptContent = Files.readString(specPath);
-                    } else {
-                        InputStream specStream = getClass().getClassLoader().getResourceAsStream("spec.md");
-                        if (specStream != null) {
-                            promptContent = new String(specStream.readAllBytes());
-                        } else {
-                            // If not found, return a helpful error
-                            ArrayNode content = mapper.createArrayNode();
-                            ObjectNode textContent = mapper.createObjectNode();
-                            textContent.put("type", "text");
-                            textContent.put("text", "Component specification not found. Please refer to: https://github.com/lihongjie0209/jsx-docx/blob/main/docs/spec.md");
-                            content.add(textContent);
+                    // If not found, return a helpful error
+                    ArrayNode content = mapper.createArrayNode();
+                    ObjectNode textContent = mapper.createObjectNode();
+                    textContent.put("type", "text");
+                    textContent.put("text", "Component specification not found. Please refer to: https://github.com/lihongjie0209/jsx-docx/blob/main/docs/spec.md");
+                    content.add(textContent);
 
-                            ObjectNode result = mapper.createObjectNode();
-                            result.set("content", content);
-                            result.put("isError", true);
+                    ObjectNode result = mapper.createObjectNode();
+                    result.set("content", content);
+                    result.put("isError", true);
 
-                            return createSuccessResponse(id, result);
-                        }
-                    }
+                    return createSuccessResponse(id, result);
                 }
             }
 
-            // Success response with prompt content
+            // Success response with spec content
             ArrayNode content = mapper.createArrayNode();
             ObjectNode textContent = mapper.createObjectNode();
             textContent.put("type", "text");
-            textContent.put("text", promptContent);
+            textContent.put("text", specContent);
             content.add(textContent);
 
             ObjectNode result = mapper.createObjectNode();
@@ -297,6 +316,42 @@ public class McpServer {
             ObjectNode textContent = mapper.createObjectNode();
             textContent.put("type", "text");
             textContent.put("text", "Error generating DOCX: " + e.getMessage());
+            content.add(textContent);
+
+            ObjectNode result = mapper.createObjectNode();
+            result.set("content", content);
+            result.put("isError", true);
+
+            return createSuccessResponse(id, result);
+        }
+    }
+
+    private JsonNode handleDocxToJsx(JsonNode id, JsonNode arguments) {
+        try {
+            String docxPath = arguments.get("docxPath").asText();
+            
+            // Convert DOCX to JSX
+            String jsxCode = DocxToJsx.convert(docxPath);
+
+            // Success response
+            ArrayNode content = mapper.createArrayNode();
+            ObjectNode textContent = mapper.createObjectNode();
+            textContent.put("type", "text");
+            textContent.put("text", "Successfully converted DOCX to JSX:\n\n" + jsxCode);
+            content.add(textContent);
+
+            ObjectNode result = mapper.createObjectNode();
+            result.set("content", content);
+            result.put("isError", false);
+
+            return createSuccessResponse(id, result);
+
+        } catch (Exception e) {
+            // Error response
+            ArrayNode content = mapper.createArrayNode();
+            ObjectNode textContent = mapper.createObjectNode();
+            textContent.put("type", "text");
+            textContent.put("text", "Error converting DOCX to JSX: " + e.getMessage());
             content.add(textContent);
 
             ObjectNode result = mapper.createObjectNode();

@@ -517,6 +517,22 @@ public class Renderer {
                             run.setText((String) c);
                         }
                     }
+                } else if (parent instanceof XWPFTableCell) {
+                    // Text directly in Cell: use first paragraph or create one
+                    XWPFTableCell cell = (XWPFTableCell) parent;
+                    XWPFParagraph p;
+                    if (cell.getParagraphs().isEmpty()) {
+                        p = cell.addParagraph();
+                    } else {
+                        p = cell.getParagraphs().get(0);
+                    }
+                    XWPFRun run = p.createRun();
+                    applyTextProps(run, node);
+                    for (Object c : node.getChildren()) {
+                        if (c instanceof String) {
+                            run.setText((String) c);
+                        }
+                    }
                 }
                 break;
             case "br":

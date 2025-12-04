@@ -100,6 +100,47 @@ Get the complete jsx-docx component specification and syntax reference.
 }
 ```
 
+### `docx_to_jsx`
+
+Convert an existing Word document (.docx) to JSX code.
+
+**Use Case**: When the user wants to reference an existing document as a template, use this tool to convert it to JSX first, then modify and regenerate.
+
+**Parameters:**
+
+- `docxPath` (string, required): Path to the existing .docx file to convert
+
+**Example Request:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "docx_to_jsx",
+    "arguments": {
+      "docxPath": "/path/to/template.docx"
+    }
+  }
+}
+```
+
+**Template Workflow:**
+
+1. **Convert**: Call `docx_to_jsx` with the template document path
+2. **Review**: Examine the generated JSX to understand the document structure
+3. **Modify**: Edit the JSX code - change text, add/remove sections, update styles
+4. **Generate**: Call `generate_docx` with the modified JSX to create the new document
+
+This workflow is ideal for:
+- Creating documents based on existing corporate templates
+- Modifying existing documents programmatically
+- Understanding the structure of complex documents
+- Batch generating variations of a template
+
+---
+
 ### `generate_docx`
 
 Generate a Word document from JSX code.
@@ -262,7 +303,7 @@ All jsx-docx components are supported in MCP mode. Here are some examples:
 
 - Server mode (HTTP/SSE) is not yet implemented
 - Resources and prompts capabilities are not implemented
-- Two tools are available: `get_component_spec` and `generate_docx`
+- Three tools are available: `get_component_spec`, `generate_docx`, and `docx_to_jsx`
 
 ## Troubleshooting
 
