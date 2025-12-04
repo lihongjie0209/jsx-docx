@@ -59,7 +59,7 @@ Document (root)
 ### Text Formatting
 ```jsx
 <Paragraph align="LEFT|CENTER|RIGHT|JUSTIFY" lineSpacing={1.5} spaceBefore={120} spaceAfter={120}>
-  <Text bold={true} italic={true} underline={true} fontSize={12} fontFamily="宋体" color="#FF0000">
+  <Text bold={true} italic={true} underline={true} fontSize={12} fontFamily="Arial" color="#FF0000">
     Formatted text
   </Text>
 </Paragraph>
@@ -139,7 +139,7 @@ Document (root)
 
 ### Table of Contents
 ```jsx
-<Toc title="目录" maxLevel={3} hyperlink={true} showPageNumbers={true} />
+<Toc title="Table of Contents" maxLevel={3} hyperlink={true} showPageNumbers={true} />
 ```
 
 ### Headers & Footers
@@ -320,7 +320,7 @@ Document (root)
 ### Toc
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| title | string | "目录" | TOC title |
+| title | string | "Contents" | TOC title |
 | maxLevel | number | 3 | Maximum heading level to include (1-9) |
 | hyperlink | boolean | true | Make entries clickable |
 | showPageNumbers | boolean | true | Show page numbers |
