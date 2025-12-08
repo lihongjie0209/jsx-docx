@@ -10,7 +10,7 @@
 mvn package
 ```
 
-生成的文件：`target/jsx-docx-1.0-SNAPSHOT-fat.jar`
+生成的文件：`target/jsx-docx-0.2.0-fat.jar`
 
 ### 使用方式
 
@@ -18,49 +18,73 @@ mvn package
 
 **单文件转换：**
 ```powershell
-java -jar target/jsx-docx-1.0-SNAPSHOT-fat.jar test.jsx
-java -jar target/jsx-docx-1.0-SNAPSHOT-fat.jar test.jsx -o output.docx
+java -jar target/jsx-docx-0.2.0-fat.jar test.jsx
+java -jar target/jsx-docx-0.2.0-fat.jar test.jsx -o output.docx
+```
+
+**从标准输入读取（v0.2.0 新增）：**
+```powershell
+# 从管道读取
+cat template.jsx | java -jar target/jsx-docx-0.2.0-fat.jar --stdin -o output.docx
+
+# 从脚本生成
+echo '<Document><Section><Paragraph><Text>Hello</Text></Paragraph></Section></Document>' | java -jar target/jsx-docx-0.2.0-fat.jar --stdin
 ```
 
 **使用 JSON 数据上下文：**
 ```powershell
-java -jar target/jsx-docx-1.0-SNAPSHOT-fat.jar template.jsx --data context.json -o output.docx
+java -jar target/jsx-docx-0.2.0-fat.jar template.jsx --data context.json -o output.docx
 ```
 
 **批量转换：**
 ```powershell
-# 转换多个文件到当前目录
-java -jar target/jsx-docx-1.0-SNAPSHOT-fat.jar file1.jsx file2.jsx file3.jsx
+# 转换多个文件到当前目录（带进度条）
+java -jar target/jsx-docx-0.2.0-fat.jar file1.jsx file2.jsx file3.jsx
 
 # 转换多个文件到指定目录
-java -jar target/jsx-docx-1.0-SNAPSHOT-fat.jar *.jsx -d output --verbose
+java -jar target/jsx-docx-0.2.0-fat.jar *.jsx -d output --verbose
+
+# 批量转换并生成报告（v0.2.0 新增）
+java -jar target/jsx-docx-0.2.0-fat.jar *.jsx -d output --report report.json
 ```
 
 #### 2. MCP 模式（AI Agent 集成）
 
 **stdio 模式（推荐）：**
 ```powershell
-java -jar target/jsx-docx-1.0-SNAPSHOT-fat.jar --mcp-stdio
+java -jar target/jsx-docx-0.2.0-fat.jar --mcp-stdio
 ```
 
 **服务器模式：**
 ```powershell
-java -jar target/jsx-docx-1.0-SNAPSHOT-fat.jar --mcp-server --mcp-port=3000
+java -jar target/jsx-docx-0.2.0-fat.jar --mcp-server --mcp-port=3000
 ```
 
 查看 [MCP 文档](docs/mcp.md) 了解如何配置 Claude Desktop 或其他 MCP 客户端。
 
 ## 命令行参数
 
+### 基本参数
 - `<inputs>...` 一个或多个输入 JSX 文件
 - `-o, --output <file>` 输出文件（仅单文件模式）
 - `-d, --output-dir <dir>` 输出目录（批量模式，使用输入文件名 + .docx）
 - `--data <file>` JSON 数据文件路径（可在 JSX 中通过 `data` 全局变量访问）
+
+### v0.2.0 新增参数
+- `--stdin` 从标准输入读取 JSX 内容（支持管道操作）
+- `--progress` 显示批量转换进度条（默认启用）
+- `--no-progress` 禁用进度条
+- `--report <file>` 生成 JSON 格式的转换报告
+
+### MCP 模式参数
 - `--mcp-stdio` 启动 MCP stdio 模式
 - `--mcp-server` 启动 MCP 服务器模式
 - `--mcp-port <port>` MCP 服务器端口（默认 3000）
+
+### 其他参数
 - `--verbose` 显示详细过程
 - `-V/--version` 显示版本
+- `-h/--help` 显示帮助信息
 
 **JSX 语法说明：**
 
@@ -220,7 +244,41 @@ python python-cli/jsx_docx_cli.py examples/test.jsx out.docx
 - 增加参数时在 `python-cli/jsx_docx_cli.py` 中添加 `@click.option`。
 - 可以加入输出格式（例如 JSON 元数据）或调试模式。
 
-## 后续改进建议
-- 进一步减小 fat jar 体积（排除非当前平台 swc4j 原生包）。
-- 增加批量转换功能（Python CLI 支持多文件）。
-- 支持从标准输入读取 JSX。
+## 更新日志
+
+### v0.2.0 (2024-12-08)
+
+**新增功能：**
+- ✨ **标准输入支持** (`--stdin`)：支持从管道读取 JSX 内容
+- 📊 **进度条显示**：批量转换时自动显示进度（可通过 `--no-progress` 禁用）
+- 📄 **报告生成** (`--report`)：生成 JSON 格式的转换结果报告
+- 🎯 改进的用户体验和错误提示
+
+**改进：**
+- 📦 版本号更新到 0.2.0
+- 📖 完善的文档和使用示例
+- 🔧 优化批量转换的输出格式
+
+### v0.1.0 (2024-12-06)
+
+**初始版本发布：**
+- ✅ JSX → DOCX 核心转换功能
+- ✅ 30+ 文档组件支持
+- ✅ MCP stdio 模式
+- ✅ 函数组件支持
+- ✅ 数据上下文支持
+- ✅ CI/CD 工作流
+
+## 项目规划
+
+查看项目的后续发展规划和待办事项：
+
+- 📋 **[项目路线图 (ROADMAP.md)](ROADMAP.md)** - 详细的长期发展规划，包括短期、中期和长期目标
+- ✅ **[待办事项清单 (TODO.md)](TODO.md)** - 具体的可操作任务列表和技术实现细节
+
+### 近期重点（v0.3.0）
+
+1. **性能优化**：减小 JAR 包体积（120MB → 40-60MB），优化启动速度
+2. **MCP 增强**：实现 HTTP 服务器模式，新增验证和预览工具
+3. **生态建设**：Docker 镜像、npm 包装器、VSCode 扩展
+4. **文档完善**：英文文档、API 参考、入门教程
