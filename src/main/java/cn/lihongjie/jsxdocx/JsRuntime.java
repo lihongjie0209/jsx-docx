@@ -1,9 +1,7 @@
 package cn.lihongjie.jsxdocx;
 
 import cn.lihongjie.jsxdocx.model.VNode;
-import org.graalvm.polyglot.Context;
-import org.graalvm.polyglot.Source;
-import org.graalvm.polyglot.Value;
+import org.mozilla.javascript.*;
 
 import java.io.InputStreamReader;
 import java.io.Reader;
@@ -19,39 +17,48 @@ public class JsRuntime {
      * @return VNode tree
      */
     public VNode run(String compiledJs, Map<String, Object> data) throws Exception {
-        try (Context context = Context.newBuilder("js")
-            .option("engine.WarnInterpreterOnly", "false")
-            .build()) {
+        Context cx = Context.enter();
+        try {
+            // Set optimization level (-1 = interpreted mode, more compatible)
+            cx.setOptimizationLevel(-1);
+            cx.setLanguageVersion(Context.VERSION_ES6);
+            // Enable ES6 features including arrow functions
+            cx.getWrapFactory().setJavaPrimitiveWrap(false);
+            
+            Scriptable scope = cx.initStandardObjects();
+            
             // 1. Load Runtime (React polyfill)
             try (Reader reader = new InputStreamReader(
                     Objects.requireNonNull(getClass().getResourceAsStream("/runtime.js")),
                     StandardCharsets.UTF_8)) {
-                context.eval(Source.newBuilder("js", reader, "runtime.js").build());
+                cx.evaluateReader(scope, reader, "runtime.js", 1, null);
             }
 
             // 1.5. Expose data context if provided
             if (data != null) {
-                Value dataValue = mapToJsValue(context, data);
-                context.getBindings("js").putMember("data", dataValue);
+                Object jsData = mapToJsValue(cx, scope, data);
+                scope.put("data", scope, jsData);
             }
 
             // 2. Run the compiled user code
-            Value evalResult = context.eval("js", compiledJs);
+            Object evalResult = cx.evaluateString(scope, compiledJs, "compiled.js", 1, null);
 
             // 3. Get the result - check both __RESULT__ (from render()) and eval result
-            Value result = context.getBindings("js").getMember("__RESULT__");
+            Object result = scope.get("__RESULT__", scope);
             
             // If no render() was called, use the last expression result
-            if (result == null || result.isNull()) {
-                if (evalResult != null && !evalResult.isNull() && evalResult.hasMembers()) {
+            if (result == null || result == Scriptable.NOT_FOUND || result == Undefined.instance) {
+                if (evalResult != null && evalResult != Undefined.instance && evalResult instanceof Scriptable) {
                     result = evalResult;
                 } else {
                     throw new RuntimeException("No document returned. JSX should evaluate to a VNode object or call render(<Document ... />).");
                 }
             }
 
-            // 4. Convert to a detached Java object tree so we can safely close the context
+            // 4. Convert to a detached Java object tree
             return toVNode(result);
+        } finally {
+            Context.exit();
         }
     }
 
@@ -63,165 +70,89 @@ public class JsRuntime {
     }
 
     /**
-     * Convert Java Map to GraalVM JS object
+     * Convert Java Map/List/primitives to Rhino JS object
      */
-    private Value mapToJsValue(Context context, Object obj) throws Exception {
-        if (obj == null) return context.eval("js", "null");
-        if (obj instanceof String) return context.eval("js", "'" + escapeJsString((String) obj) + "'");
-        if (obj instanceof Boolean) return context.eval("js", obj.toString());
-        if (obj instanceof Number) return context.eval("js", obj.toString());
+    private Object mapToJsValue(Context cx, Scriptable scope, Object obj) {
+        if (obj == null) return null;
+        if (obj instanceof String || obj instanceof Boolean || obj instanceof Number) {
+            return obj;
+        }
         
         if (obj instanceof Map) {
             Map<String, Object> map = (Map<String, Object>) obj;
-            StringBuilder sb = new StringBuilder("({");
-            boolean first = true;
+            Scriptable jsObj = cx.newObject(scope);
             for (Map.Entry<String, Object> entry : map.entrySet()) {
-                if (!first) sb.append(", ");
-                first = false;
-                sb.append(entry.getKey()).append(": ");
-                
-                Object value = entry.getValue();
-                if (value instanceof String) {
-                    sb.append("'").append(escapeJsString((String) value)).append("'");
-                } else if (value instanceof Map) {
-                    // Nested objects will be handled recursively
-                    sb.append(mapToJsString((Map<String, Object>) value));
-                } else if (value instanceof List) {
-                    sb.append(listToJsString((List<?>) value));
-                } else if (value instanceof Boolean || value instanceof Number) {
-                    sb.append(value);
-                } else {
-                    sb.append("'").append(escapeJsString(value.toString())).append("'");
-                }
+                jsObj.put(entry.getKey(), jsObj, mapToJsValue(cx, scope, entry.getValue()));
             }
-            sb.append("})");
-            return context.eval("js", sb.toString());
+            return jsObj;
         }
         
         if (obj instanceof List) {
             List<?> list = (List<?>) obj;
-            StringBuilder sb = new StringBuilder("[");
-            boolean first = true;
-            for (Object item : list) {
-                if (!first) sb.append(", ");
-                first = false;
-                
-                if (item instanceof String) {
-                    sb.append("'").append(escapeJsString((String) item)).append("'");
-                } else if (item instanceof Map) {
-                    sb.append(mapToJsString((Map<String, Object>) item));
-                } else if (item instanceof List) {
-                    sb.append(listToJsString((List<?>) item));
-                } else if (item instanceof Boolean || item instanceof Number) {
-                    sb.append(item);
-                } else {
-                    sb.append("'").append(escapeJsString(item.toString())).append("'");
-                }
+            Object[] array = new Object[list.size()];
+            for (int i = 0; i < list.size(); i++) {
+                array[i] = mapToJsValue(cx, scope, list.get(i));
             }
-            sb.append("]");
-            return context.eval("js", sb.toString());
+            return cx.newArray(scope, array);
         }
         
-        return context.eval("js", "'" + escapeJsString(obj.toString()) + "'");
+        return obj.toString();
     }
 
-    private String mapToJsString(Map<String, Object> map) {
-        StringBuilder sb = new StringBuilder("({");
-        boolean first = true;
-        for (Map.Entry<String, Object> entry : map.entrySet()) {
-            if (!first) sb.append(", ");
-            first = false;
-            sb.append(entry.getKey()).append(": ");
-            
-            Object value = entry.getValue();
-            if (value instanceof String) {
-                sb.append("'").append(escapeJsString((String) value)).append("'");
-            } else if (value instanceof Map) {
-                sb.append(mapToJsString((Map<String, Object>) value));
-            } else if (value instanceof List) {
-                sb.append(listToJsString((List<?>) value));
-            } else if (value instanceof Boolean || value instanceof Number) {
-                sb.append(value);
-            } else {
-                sb.append("'").append(escapeJsString(value.toString())).append("'");
-            }
+    private VNode toVNode(Object value) {
+        if (!(value instanceof Scriptable)) {
+            throw new RuntimeException("Expected VNode object, got: " + value);
         }
-        sb.append("})");
-        return sb.toString();
-    }
-
-    private String listToJsString(List<?> list) {
-        StringBuilder sb = new StringBuilder("[");
-        boolean first = true;
-        for (Object item : list) {
-            if (!first) sb.append(", ");
-            first = false;
-            
-            if (item instanceof String) {
-                sb.append("'").append(escapeJsString((String) item)).append("'");
-            } else if (item instanceof Map) {
-                sb.append(mapToJsString((Map<String, Object>) item));
-            } else if (item instanceof List) {
-                sb.append(listToJsString((List<?>) item));
-            } else if (item instanceof Boolean || item instanceof Number) {
-                sb.append(item);
-            } else {
-                sb.append("'").append(escapeJsString(item.toString())).append("'");
-            }
-        }
-        sb.append("]");
-        return sb.toString();
-    }
-
-    private String escapeJsString(String str) {
-        return str.replace("\\", "\\\\")
-                  .replace("'", "\\'")
-                  .replace("\n", "\\n")
-                  .replace("\r", "\\r")
-                  .replace("\t", "\\t");
-    }
-
-    private VNode toVNode(Value value) {
+        
+        Scriptable obj = (Scriptable) value;
         VNode node = new VNode();
         
-        // Get type - handle both string and other types
-        Value typeVal = value.getMember("type");
-        if (typeVal.isString()) {
-            node.setType(typeVal.asString());
-        } else {
-            // For function types or other non-string types, convert to string
+        // Get type
+        Object typeVal = obj.get("type", obj);
+        if (typeVal != Scriptable.NOT_FOUND && typeVal != null) {
             node.setType(typeVal.toString());
         }
 
+        // Get props
         Map<String, Object> props = new HashMap<>();
-        Value propsVal = value.getMember("props");
-        if (propsVal != null && propsVal.hasMembers()) {
-            for (String key : propsVal.getMemberKeys()) {
-                Value v = propsVal.getMember(key);
+        Object propsVal = obj.get("props", obj);
+        if (propsVal instanceof Scriptable) {
+            Scriptable propsObj = (Scriptable) propsVal;
+            Object[] propIds = propsObj.getIds();
+            for (Object propId : propIds) {
+                String key = propId.toString();
+                Object v = propsObj.get(key, propsObj);
                 props.put(key, toJavaAny(v));
             }
         }
         node.setProps(props);
 
+        // Get children
         List<Object> children = new ArrayList<>();
-        Value childrenVal = value.getMember("children");
-        if (childrenVal != null && childrenVal.hasArrayElements()) {
-            long len = childrenVal.getArraySize();
-            for (int i = 0; i < len; i++) {
-                Value c = childrenVal.getArrayElement(i);
-                if (c.isString()) {
-                    children.add(c.asString());
-                } else if (c.isNumber()) {
-                    // Convert numbers to strings
-                    children.add(String.valueOf(toJavaPrimitive(c)));
-                } else if (c.isBoolean()) {
-                    // Convert booleans to strings
-                    children.add(String.valueOf(c.asBoolean()));
-                } else if (c.hasMembers()) {
-                    // Recursively convert VNode objects
-                    children.add(toVNode(c));
-                } else if (!c.isNull()) {
-                    // Fallback: convert to string
+        Object childrenVal = obj.get("children", obj);
+        if (childrenVal instanceof NativeArray) {
+            NativeArray childrenArr = (NativeArray) childrenVal;
+            for (int i = 0; i < childrenArr.getLength(); i++) {
+                Object c = childrenArr.get(i, childrenArr);
+                if (c == Scriptable.NOT_FOUND || c == Undefined.instance) {
+                    continue;
+                }
+                if (c instanceof String) {
+                    children.add(c);
+                } else if (c instanceof Number) {
+                    children.add(String.valueOf(c));
+                } else if (c instanceof Boolean) {
+                    children.add(String.valueOf(c));
+                } else if (c instanceof Scriptable) {
+                    Scriptable scriptable = (Scriptable) c;
+                    // Check if it's a VNode (has type, props, children)
+                    if (scriptable.has("type", scriptable)) {
+                        children.add(toVNode(c));
+                    } else {
+                        // Fallback: convert to string
+                        children.add(c.toString());
+                    }
+                } else if (c != null) {
                     children.add(c.toString());
                 }
             }
@@ -231,35 +162,34 @@ public class JsRuntime {
         return node;
     }
 
-    private Object toJavaPrimitive(Value v) {
-        if (v == null || v.isNull()) return null;
-        if (v.isBoolean()) return v.asBoolean();
-        if (v.isNumber()) {
-            try {
-                if (v.fitsInInt()) return v.asInt();
-                if (v.fitsInLong()) return v.asLong();
-            } catch (Throwable ignored) {}
-            return v.asDouble();
+    private Object toJavaAny(Object v) {
+        if (v == null || v == Undefined.instance || v == Scriptable.NOT_FOUND) {
+            return null;
         }
-        if (v.isString()) return v.asString();
-        return v.toString();
-    }
-
-    private Object toJavaAny(Value v) {
-        if (v == null || v.isNull()) return null;
-        if (v.isBoolean() || v.isNumber() || v.isString()) return toJavaPrimitive(v);
-        if (v.hasArrayElements()) {
+        if (v instanceof String || v instanceof Boolean || v instanceof Number) {
+            return v;
+        }
+        if (v instanceof NativeArray) {
+            NativeArray arr = (NativeArray) v;
             List<Object> list = new ArrayList<>();
-            long len = v.getArraySize();
-            for (int i = 0; i < len; i++) {
-                list.add(toJavaAny(v.getArrayElement(i)));
+            for (int i = 0; i < arr.getLength(); i++) {
+                Object item = arr.get(i, arr);
+                if (item != Scriptable.NOT_FOUND) {
+                    list.add(toJavaAny(item));
+                }
             }
             return list;
         }
-        if (v.hasMembers()) {
+        if (v instanceof Scriptable) {
+            Scriptable obj = (Scriptable) v;
             Map<String, Object> map = new HashMap<>();
-            for (String key : v.getMemberKeys()) {
-                map.put(key, toJavaAny(v.getMember(key)));
+            Object[] ids = obj.getIds();
+            for (Object id : ids) {
+                String key = id.toString();
+                Object val = obj.get(key, obj);
+                if (val != Scriptable.NOT_FOUND) {
+                    map.put(key, toJavaAny(val));
+                }
             }
             return map;
         }

@@ -21,44 +21,18 @@
     </repositories>
 
     <dependencies>
-        <!-- SWC4J -->
-<dependency>
-    <groupId>com.caoccao.javet</groupId>
-    <artifactId>swc4j</artifactId> <!-- Must Have -->
-    <version>1.8.0</version>
-</dependency>
-
-
-
-
-<dependency>
-    <groupId>com.caoccao.javet</groupId>
-    <artifactId>swc4j-macos-arm64</artifactId>
-    <version>1.8.0</version>
-</dependency>
-<dependency>
-    <groupId>com.caoccao.javet</groupId>
-    <artifactId>swc4j-macos-x86_64</artifactId>
-    <version>1.8.0</version>
-</dependency>
-
-<dependency>
-    <groupId>com.caoccao.javet</groupId>
-    <artifactId>swc4j-windows-x86_64</artifactId>
-    <version>1.8.0</version>
-</dependency>
-
-        <!-- GraalVM JS -->
+        <!-- SWC4J Core (platform-agnostic) -->
         <dependency>
-            <groupId>org.graalvm.polyglot</groupId>
-            <artifactId>polyglot</artifactId>
-            <version>24.1.1</version>
+            <groupId>com.caoccao.javet</groupId>
+            <artifactId>swc4j</artifactId>
+            <version>1.8.0</version>
         </dependency>
+
+        <!-- Rhino JavaScript Engine (lightweight alternative to GraalVM) -->
         <dependency>
-            <groupId>org.graalvm.polyglot</groupId>
-            <artifactId>js</artifactId>
-            <version>24.1.1</version>
-            <type>pom</type>
+            <groupId>org.mozilla</groupId>
+            <artifactId>rhino</artifactId>
+            <version>1.7.15</version>
         </dependency>
 
         <!-- Apache POI -->
@@ -95,6 +69,130 @@
         </dependency>
     </dependencies>
 
+    <profiles>
+        <!-- Windows x86_64 Profile -->
+        <profile>
+            <id>windows-x86_64</id>
+            <activation>
+                <os>
+                    <family>windows</family>
+                    <arch>amd64</arch>
+                </os>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>com.caoccao.javet</groupId>
+                    <artifactId>swc4j-windows-x86_64</artifactId>
+                    <version>1.8.0</version>
+                </dependency>
+            </dependencies>
+        </profile>
+
+        <!-- macOS ARM64 (Apple Silicon) Profile -->
+        <profile>
+            <id>macos-arm64</id>
+            <activation>
+                <os>
+                    <family>mac</family>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>com.caoccao.javet</groupId>
+                    <artifactId>swc4j-macos-arm64</artifactId>
+                    <version>1.8.0</version>
+                </dependency>
+            </dependencies>
+        </profile>
+
+        <!-- macOS x86_64 (Intel) Profile -->
+        <profile>
+            <id>macos-x86_64</id>
+            <activation>
+                <os>
+                    <family>mac</family>
+                    <arch>x86_64</arch>
+                </os>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>com.caoccao.javet</groupId>
+                    <artifactId>swc4j-macos-x86_64</artifactId>
+                    <version>1.8.0</version>
+                </dependency>
+            </dependencies>
+        </profile>
+
+        <!-- Linux x86_64 Profile -->
+        <profile>
+            <id>linux-x86_64</id>
+            <activation>
+                <os>
+                    <family>unix</family>
+                    <arch>amd64</arch>
+                </os>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>com.caoccao.javet</groupId>
+                    <artifactId>swc4j-linux-x86_64</artifactId>
+                    <version>1.8.0</version>
+                </dependency>
+            </dependencies>
+        </profile>
+
+        <!-- Linux ARM64 Profile -->
+        <profile>
+            <id>linux-arm64</id>
+            <activation>
+                <os>
+                    <family>unix</family>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>com.caoccao.javet</groupId>
+                    <artifactId>swc4j-linux-arm64</artifactId>
+                    <version>1.8.0</version>
+                </dependency>
+            </dependencies>
+        </profile>
+
+        <!-- All Platforms Profile (for distribution builds) -->
+        <profile>
+            <id>all-platforms</id>
+            <dependencies>
+                <dependency>
+                    <groupId>com.caoccao.javet</groupId>
+                    <artifactId>swc4j-windows-x86_64</artifactId>
+                    <version>1.8.0</version>
+                </dependency>
+                <dependency>
+                    <groupId>com.caoccao.javet</groupId>
+                    <artifactId>swc4j-macos-arm64</artifactId>
+                    <version>1.8.0</version>
+                </dependency>
+                <dependency>
+                    <groupId>com.caoccao.javet</groupId>
+                    <artifactId>swc4j-macos-x86_64</artifactId>
+                    <version>1.8.0</version>
+                </dependency>
+                <dependency>
+                    <groupId>com.caoccao.javet</groupId>
+                    <artifactId>swc4j-linux-x86_64</artifactId>
+                    <version>1.8.0</version>
+                </dependency>
+                <dependency>
+                    <groupId>com.caoccao.javet</groupId>
+                    <artifactId>swc4j-linux-arm64</artifactId>
+                    <version>1.8.0</version>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
+
     <build>
         <resources>
             <resource>
@@ -112,11 +210,6 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
-                <configuration>
-                    <systemPropertyVariables>
-                        <polyglot.engine.WarnInterpreterOnly>false</polyglot.engine.WarnInterpreterOnly>
-                    </systemPropertyVariables>
-                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
