@@ -5,7 +5,33 @@
 
 ---
 
-## 🔥 当前冲刺（Sprint 1）
+## ✅ 已完成（v0.2.0）
+
+- [x] **标准输入支持** ✅ 完成于 2024-12-08
+  - [x] 在 `Main.java` 添加 `--stdin` 参数
+  - [x] 实现从 `System.in` 读取 JSX 内容
+  - [x] 支持管道操作：`cat template.jsx | java -jar jsx-docx.jar --stdin -o output.docx`
+  - [x] 更新 README 文档
+
+- [x] **优化批量转换进度显示** ✅ 完成于 2024-12-08
+  - [x] 添加 `--progress` 参数（默认启用，`--no-progress` 禁用）
+  - [x] 实现进度条显示
+  - [x] 显示：当前文件名、已完成/总数、百分比
+
+- [x] **生成报告模式** ✅ 完成于 2024-12-08
+  - [x] 添加 `--report <file.json>` 参数
+  - [x] 记录每个文件的转换结果（状态、输出路径、错误、耗时）
+  - [x] 使用 Jackson 生成 JSON
+
+- [x] **版本更新到 0.2.0** ✅ 完成于 2024-12-08
+  - [x] 更新 pom.xml 版本号
+  - [x] 更新 Main.java 版本信息
+  - [x] 创建 CHANGELOG.md
+  - [x] 更新所有文档中的版本引用
+
+---
+
+## 🔥 当前冲刺（Sprint 2 - v0.3.0）
 
 ### P0：必须完成
 
