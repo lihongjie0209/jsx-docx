@@ -220,7 +220,17 @@ python python-cli/jsx_docx_cli.py examples/test.jsx out.docx
 - 增加参数时在 `python-cli/jsx_docx_cli.py` 中添加 `@click.option`。
 - 可以加入输出格式（例如 JSON 元数据）或调试模式。
 
-## 后续改进建议
-- 进一步减小 fat jar 体积（排除非当前平台 swc4j 原生包）。
-- 增加批量转换功能（Python CLI 支持多文件）。
-- 支持从标准输入读取 JSX。
+## 项目规划
+
+查看项目的后续发展规划和待办事项：
+
+- 📋 **[项目路线图 (ROADMAP.md)](ROADMAP.md)** - 详细的长期发展规划，包括短期、中期和长期目标
+- ✅ **[待办事项清单 (TODO.md)](TODO.md)** - 具体的可操作任务列表和技术实现细节
+
+### 近期重点
+
+1. **性能优化**：减小 JAR 包体积（120MB → 40-60MB），优化启动速度
+2. **用户体验**：支持标准输入、进度显示、生成报告
+3. **MCP 增强**：实现 HTTP 服务器模式，新增验证和预览工具
+4. **生态建设**：Docker 镜像、npm 包装器、VSCode 扩展
+5. **文档完善**：英文文档、API 参考、入门教程
