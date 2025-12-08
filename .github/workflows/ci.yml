@@ -46,16 +46,39 @@ jobs:
         distribution: 'temurin'
         cache: maven
     
-    - name: Build fat jar
-      run: mvn -B package -DskipTests
-    
     - name: Get version from tag
       id: get_version
       run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
     
-    - name: Rename artifact
+    - name: Build Windows x86_64 JAR
       run: |
-        mv target/jsx-docx-*-fat.jar target/jsx-docx-${{ steps.get_version.outputs.VERSION }}.jar
+        mvn -B clean package -Pwindows-x86_64 -DskipTests
+        mv target/jsx-docx-*-fat.jar target/jsx-docx-${{ steps.get_version.outputs.VERSION }}-windows-x86_64.jar
+    
+    - name: Build macOS ARM64 JAR
+      run: |
+        mvn -B clean package -Pmacos-arm64 -DskipTests
+        mv target/jsx-docx-*-fat.jar target/jsx-docx-${{ steps.get_version.outputs.VERSION }}-macos-arm64.jar
+    
+    - name: Build macOS x86_64 JAR
+      run: |
+        mvn -B clean package -Pmacos-x86_64 -DskipTests
+        mv target/jsx-docx-*-fat.jar target/jsx-docx-${{ steps.get_version.outputs.VERSION }}-macos-x86_64.jar
+    
+    - name: Build Linux x86_64 JAR
+      run: |
+        mvn -B clean package -Plinux-x86_64 -DskipTests
+        mv target/jsx-docx-*-fat.jar target/jsx-docx-${{ steps.get_version.outputs.VERSION }}-linux-x86_64.jar
+    
+    - name: Build Linux ARM64 JAR
+      run: |
+        mvn -B clean package -Plinux-arm64 -DskipTests
+        mv target/jsx-docx-*-fat.jar target/jsx-docx-${{ steps.get_version.outputs.VERSION }}-linux-arm64.jar
+    
+    - name: Build All Platforms JAR
+      run: |
+        mvn -B clean package -Pall-platforms -DskipTests
+        mv target/jsx-docx-*-fat.jar target/jsx-docx-${{ steps.get_version.outputs.VERSION }}-all-platforms.jar
     
     - name: Create Release
       uses: softprops/action-gh-release@v1
@@ -64,7 +87,27 @@ jobs:
         draft: false
         prerelease: false
         generate_release_notes: true
+        body: |
+          ## 📦 下载说明 / Download Instructions
+          
+          请根据您的操作系统选择对应的 JAR 包：
+          Choose the JAR file according to your operating system:
+          
+          - **Windows (x86_64)**: `jsx-docx-${{ steps.get_version.outputs.VERSION }}-windows-x86_64.jar` (~41MB)
+          - **macOS (Apple Silicon/ARM64)**: `jsx-docx-${{ steps.get_version.outputs.VERSION }}-macos-arm64.jar` (~41MB)
+          - **macOS (Intel/x86_64)**: `jsx-docx-${{ steps.get_version.outputs.VERSION }}-macos-x86_64.jar` (~41MB)
+          - **Linux (x86_64)**: `jsx-docx-${{ steps.get_version.outputs.VERSION }}-linux-x86_64.jar` (~41MB)
+          - **Linux (ARM64)**: `jsx-docx-${{ steps.get_version.outputs.VERSION }}-linux-arm64.jar` (~41MB)
+          - **All Platforms**: `jsx-docx-${{ steps.get_version.outputs.VERSION }}-all-platforms.jar` (~95MB, 包含所有平台)
+          
+          平台特定的 JAR 包体积更小，启动更快。如果需要跨平台分发，请使用 all-platforms 版本。
+          Platform-specific JARs are smaller and faster to start. Use the all-platforms version for cross-platform distribution.
         files: |
-          target/jsx-docx-${{ steps.get_version.outputs.VERSION }}.jar
+          target/jsx-docx-${{ steps.get_version.outputs.VERSION }}-windows-x86_64.jar
+          target/jsx-docx-${{ steps.get_version.outputs.VERSION }}-macos-arm64.jar
+          target/jsx-docx-${{ steps.get_version.outputs.VERSION }}-macos-x86_64.jar
+          target/jsx-docx-${{ steps.get_version.outputs.VERSION }}-linux-x86_64.jar
+          target/jsx-docx-${{ steps.get_version.outputs.VERSION }}-linux-arm64.jar
+          target/jsx-docx-${{ steps.get_version.outputs.VERSION }}-all-platforms.jar
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

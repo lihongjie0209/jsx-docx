@@ -1,9 +1,14 @@
 package cn.lihongjie.jsxdocx;
 
 import cn.lihongjie.jsxdocx.model.VNode;
-import org.graalvm.polyglot.Context;
-import org.graalvm.polyglot.Source;
-import org.graalvm.polyglot.Value;
+import com.caoccao.javet.interception.logging.JavetStandardConsoleInterceptor;
+import com.caoccao.javet.interop.V8Host;
+import com.caoccao.javet.interop.V8Runtime;
+import com.caoccao.javet.interop.converters.JavetProxyConverter;
+import com.caoccao.javet.values.V8Value;
+import com.caoccao.javet.values.primitive.*;
+import com.caoccao.javet.values.reference.V8ValueArray;
+import com.caoccao.javet.values.reference.V8ValueObject;
 
 import java.io.InputStreamReader;
 import java.io.Reader;
@@ -19,39 +24,63 @@ public class JsRuntime {
      * @return VNode tree
      */
     public VNode run(String compiledJs, Map<String, Object> data) throws Exception {
-        try (Context context = Context.newBuilder("js")
-            .option("engine.WarnInterpreterOnly", "false")
-            .build()) {
+        // Create V8 runtime (V8 engine supports all modern JavaScript features)
+        try (V8Runtime v8Runtime = V8Host.getV8Instance().createV8Runtime()) {
+            // Use proxy converter for seamless Java-JS interop
+            v8Runtime.setConverter(new JavetProxyConverter());
+            
+            // Optional: Enable console logging
+            JavetStandardConsoleInterceptor consoleInterceptor = new JavetStandardConsoleInterceptor(v8Runtime);
+            consoleInterceptor.register(v8Runtime.getGlobalObject());
+            
             // 1. Load Runtime (React polyfill)
             try (Reader reader = new InputStreamReader(
                     Objects.requireNonNull(getClass().getResourceAsStream("/runtime.js")),
                     StandardCharsets.UTF_8)) {
-                context.eval(Source.newBuilder("js", reader, "runtime.js").build());
+                StringBuilder sb = new StringBuilder();
+                char[] buffer = new char[8192];
+                int read;
+                while ((read = reader.read(buffer)) != -1) {
+                    sb.append(buffer, 0, read);
+                }
+                v8Runtime.getExecutor(sb.toString()).executeVoid();
             }
 
             // 1.5. Expose data context if provided
             if (data != null) {
-                Value dataValue = mapToJsValue(context, data);
-                context.getBindings("js").putMember("data", dataValue);
+                v8Runtime.getGlobalObject().set("data", data);
             }
 
             // 2. Run the compiled user code
-            Value evalResult = context.eval("js", compiledJs);
+            V8Value evalResult = v8Runtime.getExecutor(compiledJs).execute();
 
             // 3. Get the result - check both __RESULT__ (from render()) and eval result
-            Value result = context.getBindings("js").getMember("__RESULT__");
+            V8Value result = v8Runtime.getGlobalObject().get("__RESULT__");
             
             // If no render() was called, use the last expression result
-            if (result == null || result.isNull()) {
-                if (evalResult != null && !evalResult.isNull() && evalResult.hasMembers()) {
+            boolean resultIsNullOrUndefined = (result instanceof V8ValueNull || result instanceof V8ValueUndefined);
+            if (resultIsNullOrUndefined) {
+                boolean evalIsNullOrUndefined = (evalResult == null || evalResult instanceof V8ValueNull || evalResult instanceof V8ValueUndefined);
+                if (!evalIsNullOrUndefined) {
                     result = evalResult;
                 } else {
                     throw new RuntimeException("No document returned. JSX should evaluate to a VNode object or call render(<Document ... />).");
                 }
             }
 
-            // 4. Convert to a detached Java object tree so we can safely close the context
-            return toVNode(result);
+            // 4. Convert to a detached Java object tree so we can safely close the runtime
+            VNode vnode = toVNode(result);
+            
+            // Clean up
+            if (result != evalResult) {
+                result.close();
+            }
+            if (evalResult != null) {
+                evalResult.close();
+            }
+            consoleInterceptor.unregister(v8Runtime.getGlobalObject());
+            
+            return vnode;
         }
     }
 
@@ -62,167 +91,71 @@ public class JsRuntime {
         return run(compiledJs, null);
     }
 
-    /**
-     * Convert Java Map to GraalVM JS object
-     */
-    private Value mapToJsValue(Context context, Object obj) throws Exception {
-        if (obj == null) return context.eval("js", "null");
-        if (obj instanceof String) return context.eval("js", "'" + escapeJsString((String) obj) + "'");
-        if (obj instanceof Boolean) return context.eval("js", obj.toString());
-        if (obj instanceof Number) return context.eval("js", obj.toString());
-        
-        if (obj instanceof Map) {
-            Map<String, Object> map = (Map<String, Object>) obj;
-            StringBuilder sb = new StringBuilder("({");
-            boolean first = true;
-            for (Map.Entry<String, Object> entry : map.entrySet()) {
-                if (!first) sb.append(", ");
-                first = false;
-                sb.append(entry.getKey()).append(": ");
-                
-                Object value = entry.getValue();
-                if (value instanceof String) {
-                    sb.append("'").append(escapeJsString((String) value)).append("'");
-                } else if (value instanceof Map) {
-                    // Nested objects will be handled recursively
-                    sb.append(mapToJsString((Map<String, Object>) value));
-                } else if (value instanceof List) {
-                    sb.append(listToJsString((List<?>) value));
-                } else if (value instanceof Boolean || value instanceof Number) {
-                    sb.append(value);
-                } else {
-                    sb.append("'").append(escapeJsString(value.toString())).append("'");
-                }
-            }
-            sb.append("})");
-            return context.eval("js", sb.toString());
+    private VNode toVNode(V8Value value) throws Exception {
+        if (!(value instanceof V8ValueObject)) {
+            throw new RuntimeException("Expected VNode object, got: " + value);
         }
         
-        if (obj instanceof List) {
-            List<?> list = (List<?>) obj;
-            StringBuilder sb = new StringBuilder("[");
-            boolean first = true;
-            for (Object item : list) {
-                if (!first) sb.append(", ");
-                first = false;
-                
-                if (item instanceof String) {
-                    sb.append("'").append(escapeJsString((String) item)).append("'");
-                } else if (item instanceof Map) {
-                    sb.append(mapToJsString((Map<String, Object>) item));
-                } else if (item instanceof List) {
-                    sb.append(listToJsString((List<?>) item));
-                } else if (item instanceof Boolean || item instanceof Number) {
-                    sb.append(item);
-                } else {
-                    sb.append("'").append(escapeJsString(item.toString())).append("'");
-                }
-            }
-            sb.append("]");
-            return context.eval("js", sb.toString());
-        }
-        
-        return context.eval("js", "'" + escapeJsString(obj.toString()) + "'");
-    }
-
-    private String mapToJsString(Map<String, Object> map) {
-        StringBuilder sb = new StringBuilder("({");
-        boolean first = true;
-        for (Map.Entry<String, Object> entry : map.entrySet()) {
-            if (!first) sb.append(", ");
-            first = false;
-            sb.append(entry.getKey()).append(": ");
-            
-            Object value = entry.getValue();
-            if (value instanceof String) {
-                sb.append("'").append(escapeJsString((String) value)).append("'");
-            } else if (value instanceof Map) {
-                sb.append(mapToJsString((Map<String, Object>) value));
-            } else if (value instanceof List) {
-                sb.append(listToJsString((List<?>) value));
-            } else if (value instanceof Boolean || value instanceof Number) {
-                sb.append(value);
-            } else {
-                sb.append("'").append(escapeJsString(value.toString())).append("'");
-            }
-        }
-        sb.append("})");
-        return sb.toString();
-    }
-
-    private String listToJsString(List<?> list) {
-        StringBuilder sb = new StringBuilder("[");
-        boolean first = true;
-        for (Object item : list) {
-            if (!first) sb.append(", ");
-            first = false;
-            
-            if (item instanceof String) {
-                sb.append("'").append(escapeJsString((String) item)).append("'");
-            } else if (item instanceof Map) {
-                sb.append(mapToJsString((Map<String, Object>) item));
-            } else if (item instanceof List) {
-                sb.append(listToJsString((List<?>) item));
-            } else if (item instanceof Boolean || item instanceof Number) {
-                sb.append(item);
-            } else {
-                sb.append("'").append(escapeJsString(item.toString())).append("'");
-            }
-        }
-        sb.append("]");
-        return sb.toString();
-    }
-
-    private String escapeJsString(String str) {
-        return str.replace("\\", "\\\\")
-                  .replace("'", "\\'")
-                  .replace("\n", "\\n")
-                  .replace("\r", "\\r")
-                  .replace("\t", "\\t");
-    }
-
-    private VNode toVNode(Value value) {
+        V8ValueObject obj = (V8ValueObject) value;
         VNode node = new VNode();
         
-        // Get type - handle both string and other types
-        Value typeVal = value.getMember("type");
-        if (typeVal.isString()) {
-            node.setType(typeVal.asString());
-        } else {
-            // For function types or other non-string types, convert to string
-            node.setType(typeVal.toString());
+        // Get type
+        try (V8Value typeVal = obj.get("type")) {
+            if (!(typeVal instanceof V8ValueNull || typeVal instanceof V8ValueUndefined)) {
+                node.setType(typeVal.toString());
+            }
         }
 
+        // Get props
         Map<String, Object> props = new HashMap<>();
-        Value propsVal = value.getMember("props");
-        if (propsVal != null && propsVal.hasMembers()) {
-            for (String key : propsVal.getMemberKeys()) {
-                Value v = propsVal.getMember(key);
-                props.put(key, toJavaAny(v));
+        try (V8Value propsVal = obj.get("props")) {
+            if (propsVal instanceof V8ValueObject) {
+                V8ValueObject propsObj = (V8ValueObject) propsVal;
+                try (V8ValueArray propKeys = (V8ValueArray) propsObj.getOwnPropertyNames()) {
+                    int len = propKeys.getLength();
+                    for (int i = 0; i < len; i++) {
+                        try (V8Value keyVal = propKeys.get(i)) {
+                            String key = keyVal.toString();
+                            try (V8Value v = propsObj.get(key)) {
+                                props.put(key, toJavaAny(v));
+                            }
+                        }
+                    }
+                }
             }
         }
         node.setProps(props);
 
+        // Get children
         List<Object> children = new ArrayList<>();
-        Value childrenVal = value.getMember("children");
-        if (childrenVal != null && childrenVal.hasArrayElements()) {
-            long len = childrenVal.getArraySize();
-            for (int i = 0; i < len; i++) {
-                Value c = childrenVal.getArrayElement(i);
-                if (c.isString()) {
-                    children.add(c.asString());
-                } else if (c.isNumber()) {
-                    // Convert numbers to strings
-                    children.add(String.valueOf(toJavaPrimitive(c)));
-                } else if (c.isBoolean()) {
-                    // Convert booleans to strings
-                    children.add(String.valueOf(c.asBoolean()));
-                } else if (c.hasMembers()) {
-                    // Recursively convert VNode objects
-                    children.add(toVNode(c));
-                } else if (!c.isNull()) {
-                    // Fallback: convert to string
-                    children.add(c.toString());
+        try (V8Value childrenVal = obj.get("children")) {
+            if (childrenVal instanceof V8ValueArray) {
+                V8ValueArray childrenArr = (V8ValueArray) childrenVal;
+                int len = childrenArr.getLength();
+                for (int i = 0; i < len; i++) {
+                    try (V8Value c = childrenArr.get(i)) {
+                        if (c instanceof V8ValueNull || c instanceof V8ValueUndefined) {
+                            continue;
+                        }
+                        if (c instanceof V8ValueString) {
+                            children.add(c.toString());
+                        } else if (c instanceof V8ValueNumber || c instanceof V8ValueInteger || c instanceof V8ValueLong || c instanceof V8ValueDouble) {
+                            children.add(String.valueOf(c.toString()));
+                        } else if (c instanceof V8ValueBoolean) {
+                            children.add(String.valueOf(((V8ValueBoolean)c).getValue()));
+                        } else if (c instanceof V8ValueObject) {
+                            V8ValueObject scriptable = (V8ValueObject) c;
+                            // Check if it's a VNode (has type, props, children)
+                            if (scriptable.has("type")) {
+                                children.add(toVNode(c));
+                            } else {
+                                // Fallback: convert to string
+                                children.add(c.toString());
+                            }
+                        } else {
+                            children.add(c.toString());
+                        }
+                    }
                 }
             }
         }
@@ -231,35 +164,53 @@ public class JsRuntime {
         return node;
     }
 
-    private Object toJavaPrimitive(Value v) {
-        if (v == null || v.isNull()) return null;
-        if (v.isBoolean()) return v.asBoolean();
-        if (v.isNumber()) {
-            try {
-                if (v.fitsInInt()) return v.asInt();
-                if (v.fitsInLong()) return v.asLong();
-            } catch (Throwable ignored) {}
-            return v.asDouble();
+    private Object toJavaAny(V8Value v) throws Exception {
+        if (v instanceof V8ValueNull || v instanceof V8ValueUndefined) {
+            return null;
         }
-        if (v.isString()) return v.asString();
-        return v.toString();
-    }
-
-    private Object toJavaAny(Value v) {
-        if (v == null || v.isNull()) return null;
-        if (v.isBoolean() || v.isNumber() || v.isString()) return toJavaPrimitive(v);
-        if (v.hasArrayElements()) {
+        if (v instanceof V8ValueString) {
+            return v.toString();
+        }
+        if (v instanceof V8ValueBoolean) {
+            return ((V8ValueBoolean)v).getValue();
+        }
+        if (v instanceof V8ValueInteger) {
+            return ((V8ValueInteger)v).getValue();
+        }
+        if (v instanceof V8ValueLong) {
+            return ((V8ValueLong)v).getValue();
+        }
+        if (v instanceof V8ValueDouble) {
+            return ((V8ValueDouble)v).getValue();
+        }
+        if (v instanceof V8ValueNumber) {
+            // Generic number type
+            return ((V8ValueNumber)v).getValue();
+        }
+        if (v instanceof V8ValueArray) {
+            V8ValueArray arr = (V8ValueArray) v;
             List<Object> list = new ArrayList<>();
-            long len = v.getArraySize();
+            int len = arr.getLength();
             for (int i = 0; i < len; i++) {
-                list.add(toJavaAny(v.getArrayElement(i)));
+                try (V8Value item = arr.get(i)) {
+                    list.add(toJavaAny(item));
+                }
             }
             return list;
         }
-        if (v.hasMembers()) {
+        if (v instanceof V8ValueObject) {
+            V8ValueObject obj = (V8ValueObject) v;
             Map<String, Object> map = new HashMap<>();
-            for (String key : v.getMemberKeys()) {
-                map.put(key, toJavaAny(v.getMember(key)));
+            try (V8ValueArray keys = (V8ValueArray) obj.getOwnPropertyNames()) {
+                int len = keys.getLength();
+                for (int i = 0; i < len; i++) {
+                    try (V8Value keyVal = keys.get(i)) {
+                        String key = keyVal.toString();
+                        try (V8Value val = obj.get(key)) {
+                            map.put(key, toJavaAny(val));
+                        }
+                    }
+                }
             }
             return map;
         }

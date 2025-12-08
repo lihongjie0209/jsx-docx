@@ -17,8 +17,8 @@ public class Compiler {
         URL specifier = new URL("file:///main.jsx");
 
         // Use Classic runtime with custom factories to avoid global React.
-        // This prevents SWC from emitting ESM imports (which GraalJS can't eval)
-        // while still allowing concise JSX usage in tests.
+        // This prevents SWC from emitting ESM imports which can't be eval'd
+        // while still allowing concise JSX usage.
         Swc4jJsxRuntimeOption jsxOption = Swc4jJsxRuntimeOption.Classic()
             .setFactory("React.createElement")
             .setFragmentFactory("React.Fragment");
