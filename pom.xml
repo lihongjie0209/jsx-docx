@@ -28,11 +28,11 @@
             <version>1.8.0</version>
         </dependency>
 
-        <!-- Rhino JavaScript Engine (lightweight alternative to GraalVM) -->
+        <!-- Javet JavaScript Engine (V8-based, modern ES2023+ support) -->
         <dependency>
-            <groupId>org.mozilla</groupId>
-            <artifactId>rhino</artifactId>
-            <version>1.7.15</version>
+            <groupId>com.caoccao.javet</groupId>
+            <artifactId>javet</artifactId>
+            <version>5.0.2</version>
         </dependency>
 
         <!-- Apache POI -->
@@ -85,6 +85,11 @@
                     <artifactId>swc4j-windows-x86_64</artifactId>
                     <version>1.8.0</version>
                 </dependency>
+                <dependency>
+                    <groupId>com.caoccao.javet</groupId>
+                    <artifactId>javet-v8-windows-x86_64</artifactId>
+                    <version>5.0.2</version>
+                </dependency>
             </dependencies>
         </profile>
 
@@ -102,6 +107,11 @@
                     <groupId>com.caoccao.javet</groupId>
                     <artifactId>swc4j-macos-arm64</artifactId>
                     <version>1.8.0</version>
+                </dependency>
+                <dependency>
+                    <groupId>com.caoccao.javet</groupId>
+                    <artifactId>javet-v8-macos-arm64</artifactId>
+                    <version>5.0.2</version>
                 </dependency>
             </dependencies>
         </profile>
@@ -121,6 +131,11 @@
                     <artifactId>swc4j-macos-x86_64</artifactId>
                     <version>1.8.0</version>
                 </dependency>
+                <dependency>
+                    <groupId>com.caoccao.javet</groupId>
+                    <artifactId>javet-v8-macos-x86_64</artifactId>
+                    <version>5.0.2</version>
+                </dependency>
             </dependencies>
         </profile>
 
@@ -139,6 +154,11 @@
                     <artifactId>swc4j-linux-x86_64</artifactId>
                     <version>1.8.0</version>
                 </dependency>
+                <dependency>
+                    <groupId>com.caoccao.javet</groupId>
+                    <artifactId>javet-v8-linux-x86_64</artifactId>
+                    <version>5.0.2</version>
+                </dependency>
             </dependencies>
         </profile>
 
@@ -156,6 +176,11 @@
                     <groupId>com.caoccao.javet</groupId>
                     <artifactId>swc4j-linux-arm64</artifactId>
                     <version>1.8.0</version>
+                </dependency>
+                <dependency>
+                    <groupId>com.caoccao.javet</groupId>
+                    <artifactId>javet-v8-linux-arm64</artifactId>
+                    <version>5.0.2</version>
                 </dependency>
             </dependencies>
         </profile>
@@ -188,6 +213,31 @@
                     <groupId>com.caoccao.javet</groupId>
                     <artifactId>swc4j-linux-arm64</artifactId>
                     <version>1.8.0</version>
+                </dependency>
+                <dependency>
+                    <groupId>com.caoccao.javet</groupId>
+                    <artifactId>javet-v8-windows-x86_64</artifactId>
+                    <version>5.0.2</version>
+                </dependency>
+                <dependency>
+                    <groupId>com.caoccao.javet</groupId>
+                    <artifactId>javet-v8-macos-arm64</artifactId>
+                    <version>5.0.2</version>
+                </dependency>
+                <dependency>
+                    <groupId>com.caoccao.javet</groupId>
+                    <artifactId>javet-v8-macos-x86_64</artifactId>
+                    <version>5.0.2</version>
+                </dependency>
+                <dependency>
+                    <groupId>com.caoccao.javet</groupId>
+                    <artifactId>javet-v8-linux-x86_64</artifactId>
+                    <version>5.0.2</version>
+                </dependency>
+                <dependency>
+                    <groupId>com.caoccao.javet</groupId>
+                    <artifactId>javet-v8-linux-arm64</artifactId>
+                    <version>5.0.2</version>
                 </dependency>
             </dependencies>
         </profile>
