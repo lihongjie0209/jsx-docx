@@ -178,7 +178,8 @@ public class McpServer {
                 "Workflow: 1) Convert the template docx to JSX, 2) Review and understand the structure, " +
                 "3) Modify the JSX as needed (change text, add/remove sections, update styles), " +
                 "4) Generate new document using generate_docx. This is ideal for creating documents " +
-                "based on existing templates or corporate formats.");
+                "based on existing templates or corporate formats. " +
+                "Images can be exported to a folder and referenced by path, or embedded as base64 (default).");
         
         ObjectNode reverseSchema = mapper.createObjectNode();
         reverseSchema.put("type", "object");
@@ -189,6 +190,13 @@ public class McpServer {
         docxPath.put("type", "string");
         docxPath.put("description", "Path to the existing .docx file to convert to JSX");
         reverseProperties.set("docxPath", docxPath);
+        
+        ObjectNode imageExportDir = mapper.createObjectNode();
+        imageExportDir.put("type", "string");
+        imageExportDir.put("description", "Optional directory path to export images. " +
+                "If provided, images will be saved as separate files and referenced by path in JSX. " +
+                "If not provided, images will be embedded as base64 data URIs (default).");
+        reverseProperties.set("imageExportDir", imageExportDir);
         
         reverseSchema.set("properties", reverseProperties);
         ArrayNode reverseRequired = mapper.createArrayNode();
@@ -330,14 +338,30 @@ public class McpServer {
         try {
             String docxPath = arguments.get("docxPath").asText();
             
+            // Get optional image export directory
+            Path imageExportDir = null;
+            if (arguments.has("imageExportDir") && !arguments.get("imageExportDir").isNull()) {
+                String imageExportDirStr = arguments.get("imageExportDir").asText();
+                if (imageExportDirStr != null && !imageExportDirStr.trim().isEmpty()) {
+                    imageExportDir = Paths.get(imageExportDirStr);
+                }
+            }
+            
             // Convert DOCX to JSX
-            String jsxCode = DocxToJsx.convert(docxPath);
+            String jsxCode = DocxToJsx.convert(docxPath, imageExportDir);
 
             // Success response
             ArrayNode content = mapper.createArrayNode();
             ObjectNode textContent = mapper.createObjectNode();
             textContent.put("type", "text");
-            textContent.put("text", "Successfully converted DOCX to JSX:\n\n" + jsxCode);
+            
+            String message = "Successfully converted DOCX to JSX";
+            if (imageExportDir != null) {
+                message += "\nImages exported to: " + imageExportDir.toAbsolutePath();
+            }
+            message += ":\n\n" + jsxCode;
+            
+            textContent.put("text", message);
             content.add(textContent);
 
             ObjectNode result = mapper.createObjectNode();

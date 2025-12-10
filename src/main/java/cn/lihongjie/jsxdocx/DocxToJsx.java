@@ -22,19 +22,45 @@ public class DocxToJsx {
     private int indentLevel = 0;
     private final String indentStr = "  "; // 2 spaces
     private final Set<BigInteger> processedNumIds = new HashSet<>();
+    private final Path imageExportDir; // Optional directory to export images
+    private int imageCounter = 0; // Counter for generating unique image filenames
     
     public DocxToJsx(XWPFDocument document) {
+        this(document, null);
+    }
+    
+    /**
+     * Create converter with optional image export directory.
+     * @param document The Word document to convert
+     * @param imageExportDir Optional directory to export images. If null, images are embedded as base64.
+     */
+    public DocxToJsx(XWPFDocument document, Path imageExportDir) {
         this.document = document;
         this.jsx = new StringBuilder();
+        this.imageExportDir = imageExportDir;
     }
     
     /**
      * Convert a DOCX file to JSX string.
      */
     public static String convert(String docxPath) throws IOException {
+        return convert(docxPath, null);
+    }
+    
+    /**
+     * Convert a DOCX file to JSX string with optional image export.
+     * @param docxPath Path to the DOCX file
+     * @param imageExportDir Optional directory to export images. If null, images are embedded as base64.
+     * @return JSX string representation of the document
+     */
+    public static String convert(String docxPath, Path imageExportDir) throws IOException {
         try (FileInputStream fis = new FileInputStream(docxPath);
              XWPFDocument doc = new XWPFDocument(fis)) {
-            DocxToJsx converter = new DocxToJsx(doc);
+            // Create image export directory if specified and doesn't exist
+            if (imageExportDir != null && !Files.exists(imageExportDir)) {
+                Files.createDirectories(imageExportDir);
+            }
+            DocxToJsx converter = new DocxToJsx(doc, imageExportDir);
             return converter.toJsx();
         }
     }
@@ -43,7 +69,17 @@ public class DocxToJsx {
      * Convert a DOCX file to JSX and save to file.
      */
     public static void convertToFile(String docxPath, String jsxPath) throws IOException {
-        String jsx = convert(docxPath);
+        convertToFile(docxPath, jsxPath, null);
+    }
+    
+    /**
+     * Convert a DOCX file to JSX and save to file with optional image export.
+     * @param docxPath Path to the DOCX file
+     * @param jsxPath Path to save the JSX file
+     * @param imageExportDir Optional directory to export images. If null, images are embedded as base64.
+     */
+    public static void convertToFile(String docxPath, String jsxPath, Path imageExportDir) throws IOException {
+        String jsx = convert(docxPath, imageExportDir);
         Files.writeString(Path.of(jsxPath), jsx);
     }
     
@@ -610,14 +646,36 @@ public class DocxToJsx {
                 int width = (int) (pic.getCTPicture().getSpPr().getXfrm().getExt().getCx() / 9525); // EMUs to pixels
                 int height = (int) (pic.getCTPicture().getSpPr().getXfrm().getExt().getCy() / 9525);
                 
-                // Convert to base64
-                byte[] data = picData.getData();
-                String base64 = Base64.getEncoder().encodeToString(data);
-                String mimeType = picData.getPackagePart().getContentType();
-                String dataUri = "data:" + mimeType + ";base64," + base64;
+                String srcValue;
+                
+                if (imageExportDir != null) {
+                    // Export image to file
+                    byte[] data = picData.getData();
+                    
+                    // Determine file extension from MIME type
+                    String mimeType = picData.getPackagePart().getContentType();
+                    String extension = getExtensionFromMimeType(mimeType);
+                    
+                    // Generate unique filename
+                    imageCounter++;
+                    String filename = "image-" + imageCounter + extension;
+                    Path imagePath = imageExportDir.resolve(filename);
+                    
+                    // Write image file
+                    Files.write(imagePath, data);
+                    
+                    // Use relative or absolute path as src
+                    srcValue = imagePath.toString();
+                } else {
+                    // Convert to base64 (default behavior)
+                    byte[] data = picData.getData();
+                    String base64 = Base64.getEncoder().encodeToString(data);
+                    String mimeType = picData.getPackagePart().getContentType();
+                    srcValue = "data:" + mimeType + ";base64," + base64;
+                }
                 
                 StringBuilder tag = new StringBuilder();
-                tag.append("<Image src=\"").append(dataUri).append("\"");
+                tag.append("<Image src=\"").append(escapeJsx(srcValue)).append("\"");
                 if (width > 0) {
                     tag.append(" width={").append(width).append("}");
                 }
@@ -629,8 +687,33 @@ public class DocxToJsx {
                 appendLine(tag.toString());
             }
         } catch (Exception e) {
-            appendLine("{/* Image conversion failed */}");
+            appendLine("{/* Image conversion failed: " + e.getMessage() + " */}");
         }
+    }
+    
+    /**
+     * Get file extension from MIME type
+     */
+    private String getExtensionFromMimeType(String mimeType) {
+        if (mimeType == null) return ".bin";
+        
+        return switch (mimeType.toLowerCase()) {
+            case "image/png" -> ".png";
+            case "image/jpeg", "image/jpg" -> ".jpg";
+            case "image/gif" -> ".gif";
+            case "image/bmp" -> ".bmp";
+            case "image/tiff" -> ".tiff";
+            case "image/svg+xml" -> ".svg";
+            case "image/webp" -> ".webp";
+            default -> {
+                // Try to extract extension from mime type
+                if (mimeType.startsWith("image/")) {
+                    String subtype = mimeType.substring(6);
+                    yield "." + subtype;
+                }
+                yield ".bin";
+            }
+        };
     }
     
     private void convertTable(XWPFTable table) {
