@@ -675,7 +675,8 @@ public class DocxToJsx {
                 }
                 
                 StringBuilder tag = new StringBuilder();
-                tag.append("<Image src=\"").append(escapeJsx(srcValue)).append("\"");
+                // Note: Don't escape file paths - they're already in quotes and may contain backslashes
+                tag.append("<Image src=\"").append(srcValue).append("\"");
                 if (width > 0) {
                     tag.append(" width={").append(width).append("}");
                 }
