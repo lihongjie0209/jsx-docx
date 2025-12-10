@@ -1,5 +1,6 @@
 package cn.lihongjie.jsxdocx;
 
+import cn.lihongjie.jsxdocx.exception.ComponentValidationException;
 import cn.lihongjie.jsxdocx.model.VNode;
 import org.apache.poi.xwpf.usermodel.*;
 import org.apache.poi.util.Units;
@@ -267,11 +268,11 @@ public class Renderer {
         }
     }
 
-    public void renderToDocx(VNode vDom, String outputPath) throws IOException {
+    public void renderToDocx(VNode vDom, String outputPath) throws IOException, ComponentValidationException {
         renderToDocx(vDom, outputPath, null, null);
     }
 
-    public void renderToDocx(VNode vDom, String outputPath, Path sourcePath, Map<String, Object> dataContext) throws IOException {
+    public void renderToDocx(VNode vDom, String outputPath, Path sourcePath, Map<String, Object> dataContext) throws IOException, ComponentValidationException {
         this.basePath = sourcePath != null ? sourcePath.getParent() : Paths.get(".");
         this.dataContext = dataContext;
         this.includeStack = new HashSet<>();
@@ -283,7 +284,10 @@ public class Renderer {
         try (XWPFDocument document = new XWPFDocument()) {
 
             if (!"document".equals(vDom.getType())) {
-                throw new IllegalArgumentException("Root element must be <Document>");
+                throw new ComponentValidationException(
+                    "Root",
+                    "Root element must be <Document>, but found <" + vDom.getType() + ">"
+                );
             }
 
             renderChildren(document, vDom);
@@ -753,8 +757,16 @@ public class Renderer {
     private void renderInclude(Object parent, VNode node) {
         String pathStr = String.valueOf(node.getProps().get("path"));
         if (pathStr == null || "null".equals(pathStr) || pathStr.isEmpty()) {
-            System.err.println("Error: <Include> component requires 'path' property");
-            return;
+            try {
+                throw new ComponentValidationException(
+                    "Include",
+                    "path",
+                    "Missing required property 'path'"
+                );
+            } catch (ComponentValidationException e) {
+                System.err.println(e.getMessage());
+                return;
+            }
         }
 
         try {
@@ -769,12 +781,22 @@ public class Renderer {
                     chain.append(p.getFileName());
                 }
                 chain.append(" → ").append(includePath.getFileName());
-                throw new IllegalStateException("Circular include detected: " + chain);
+                throw new ComponentValidationException(
+                    "Include",
+                    "path",
+                    "Circular include detected: " + chain.toString()
+                );
             }
             
             // Read file
             if (!java.nio.file.Files.exists(includePath)) {
-                throw new IOException("Include file not found: " + includePath);
+                throw new ComponentValidationException(
+                    "Include",
+                    "path",
+                    "File not found: " + includePath,
+                    "An existing file path",
+                    pathStr
+                );
             }
             
             String jsxContent = java.nio.file.Files.readString(includePath);
@@ -805,12 +827,12 @@ public class Renderer {
                 this.basePath = savedBasePath;
             }
             
-        } catch (IllegalStateException e) {
-            // Re-throw circular dependency errors immediately
-            System.err.println("Error processing <Include path='" + pathStr + "'>: " + e.getMessage());
-            throw e;
+        } catch (ComponentValidationException e) {
+            // Print validation errors with helpful context
+            System.err.println(e.getMessage());
+            // Don't re-throw to allow document to continue rendering
         } catch (Exception e) {
-            // Other errors (file not found, compile errors) - print but continue
+            // Other errors (compile errors, runtime errors) - print but continue
             System.err.println("Error processing <Include path='" + pathStr + "'>: " + e.getMessage());
         }
     }

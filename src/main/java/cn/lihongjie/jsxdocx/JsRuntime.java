@@ -1,5 +1,6 @@
 package cn.lihongjie.jsxdocx;
 
+import cn.lihongjie.jsxdocx.exception.JsxRuntimeException;
 import cn.lihongjie.jsxdocx.model.VNode;
 import com.caoccao.javet.interception.logging.JavetStandardConsoleInterceptor;
 import com.caoccao.javet.interop.V8Host;
@@ -23,7 +24,7 @@ public class JsRuntime {
      * @param data optional Map to expose as global 'data' object in JSX context
      * @return VNode tree
      */
-    public VNode run(String compiledJs, Map<String, Object> data) throws Exception {
+    public VNode run(String compiledJs, Map<String, Object> data) throws JsxRuntimeException {
         // Create V8 runtime (V8 engine supports all modern JavaScript features)
         try (V8Runtime v8Runtime = V8Host.getV8Instance().createV8Runtime()) {
             // Use proxy converter for seamless Java-JS interop
@@ -52,7 +53,34 @@ public class JsRuntime {
             }
 
             // 2. Run the compiled user code
-            V8Value evalResult = v8Runtime.getExecutor(compiledJs).execute();
+            V8Value evalResult;
+            try {
+                evalResult = v8Runtime.getExecutor(compiledJs).execute();
+            } catch (Exception e) {
+                // Wrap JavaScript execution errors with helpful context
+                String errorMsg = e.getMessage();
+                String suggestion = null;
+                
+                if (errorMsg != null) {
+                    if (errorMsg.contains("is not defined")) {
+                        String varName = extractVariableName(errorMsg, "is not defined");
+                        suggestion = "Variable '" + varName + "' is not defined. " +
+                                   "Check spelling, or pass it via --data option if it's external data.";
+                    } else if (errorMsg.contains("is not a function")) {
+                        String funcName = extractVariableName(errorMsg, "is not a function");
+                        suggestion = "'" + funcName + "' is not a function. " +
+                                   "Verify the function is defined and the name is spelled correctly.";
+                    } else if (errorMsg.contains("Cannot read property")) {
+                        suggestion = "Attempting to read a property of null or undefined. " +
+                                   "Add null checks before accessing object properties.";
+                    }
+                }
+                
+                throw new JsxRuntimeException(
+                    errorMsg != null ? errorMsg : "Unknown runtime error",
+                    suggestion
+                );
+            }
 
             // 3. Get the result - check both __RESULT__ (from render()) and eval result
             V8Value result = v8Runtime.getGlobalObject().get("__RESULT__");
@@ -64,7 +92,10 @@ public class JsRuntime {
                 if (!evalIsNullOrUndefined) {
                     result = evalResult;
                 } else {
-                    throw new RuntimeException("No document returned. JSX should evaluate to a VNode object or call render(<Document ... />).");
+                    throw new JsxRuntimeException(
+                        "No document returned from JSX code",
+                        "Ensure your JSX file returns a <Document> element, either as the last expression or by calling render(<Document>...</Document>)"
+                    );
                 }
             }
 
@@ -81,13 +112,41 @@ public class JsRuntime {
             consoleInterceptor.unregister(v8Runtime.getGlobalObject());
             
             return vnode;
+        } catch (JsxRuntimeException e) {
+            // Re-throw our custom exceptions
+            throw e;
+        } catch (Exception e) {
+            // Wrap any other unexpected errors
+            throw new JsxRuntimeException(
+                "Unexpected error during JSX execution: " + e.getMessage(),
+                "Check your JSX code for syntax errors or invalid operations"
+            );
         }
+    }
+    
+    /**
+     * Extract variable name from error messages like "x is not defined"
+     */
+    private String extractVariableName(String errorMsg, String pattern) {
+        try {
+            int index = errorMsg.indexOf(pattern);
+            if (index > 0) {
+                String before = errorMsg.substring(0, index).trim();
+                String[] words = before.split("\\s+");
+                if (words.length > 0) {
+                    return words[words.length - 1].replace("'", "").replace("\"", "");
+                }
+            }
+        } catch (Exception e) {
+            // If extraction fails, return empty string
+        }
+        return "";
     }
 
     /**
      * Execute compiled JSX without data context (backward compatible)
      */
-    public VNode run(String compiledJs) throws Exception {
+    public VNode run(String compiledJs) throws JsxRuntimeException {
         return run(compiledJs, null);
     }
 
