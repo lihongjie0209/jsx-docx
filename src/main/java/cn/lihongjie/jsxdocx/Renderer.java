@@ -770,6 +770,12 @@ public class Renderer {
         }
 
         try {
+            // Check if basePath is set
+            if (basePath == null) {
+                System.err.println("Error processing <Include path='" + pathStr + "'>: basePath not initialized. Include components require the source file path to be specified.");
+                return;
+            }
+            
             // Resolve relative path
             Path includePath = basePath.resolve(pathStr).normalize().toAbsolutePath();
             
@@ -781,22 +787,12 @@ public class Renderer {
                     chain.append(p.getFileName());
                 }
                 chain.append(" → ").append(includePath.getFileName());
-                throw new ComponentValidationException(
-                    "Include",
-                    "path",
-                    "Circular include detected: " + chain.toString()
-                );
+                throw new IllegalStateException("Circular include detected: " + chain.toString());
             }
             
             // Read file
             if (!java.nio.file.Files.exists(includePath)) {
-                throw new ComponentValidationException(
-                    "Include",
-                    "path",
-                    "File not found: " + includePath,
-                    "An existing file path",
-                    pathStr
-                );
+                throw new IOException("Include file not found: " + includePath);
             }
             
             String jsxContent = java.nio.file.Files.readString(includePath);
@@ -827,12 +823,12 @@ public class Renderer {
                 this.basePath = savedBasePath;
             }
             
-        } catch (ComponentValidationException e) {
-            // Print validation errors with helpful context
-            System.err.println(e.getMessage());
-            // Don't re-throw to allow document to continue rendering
+        } catch (IllegalStateException e) {
+            // Re-throw circular dependency errors immediately
+            System.err.println("Error processing <Include path='" + pathStr + "'>: " + e.getMessage());
+            throw e;
         } catch (Exception e) {
-            // Other errors (compile errors, runtime errors) - print but continue
+            // Other errors (file not found, compile errors) - print but continue
             System.err.println("Error processing <Include path='" + pathStr + "'>: " + e.getMessage());
         }
     }
