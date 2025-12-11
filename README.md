@@ -48,7 +48,33 @@ java -jar target/jsx-docx-0.2.0-fat.jar *.jsx -d output --verbose
 java -jar target/jsx-docx-0.2.0-fat.jar *.jsx -d output --report report.json
 ```
 
-#### 2. MCP 模式（AI Agent 集成）
+#### 2. DOCX 转 JSX（反向转换）
+
+将现有的 Word 文档转换为 JSX 代码，便于修改和重新生成。
+
+**Java API 方式：**
+```java
+// 默认：图片嵌入为 base64
+String jsx = DocxToJsx.convert("template.docx");
+
+// 导出图片到文件夹
+Path imageDir = Paths.get("images");
+String jsx = DocxToJsx.convert("template.docx", imageDir);
+
+// 转换并保存为文件
+DocxToJsx.convertToFile("template.docx", "output.jsx", imageDir);
+```
+
+**MCP 模式：**
+
+通过 MCP 的 `docx_to_jsx` 工具进行转换（支持图片导出选项）。详见 [MCP 文档](docs/mcp.md)。
+
+**使用场景：**
+- 基于现有模板创建新文档
+- 理解复杂文档的结构
+- 批量生成文档变体
+
+#### 3. MCP 模式（AI Agent 集成）
 
 **stdio 模式（推荐）：**
 ```powershell

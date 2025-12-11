@@ -109,8 +109,9 @@ Convert an existing Word document (.docx) to JSX code.
 **Parameters:**
 
 - `docxPath` (string, required): Path to the existing .docx file to convert
+- `imageExportDir` (string, optional): Directory path to export images. If provided, images will be saved as separate files (e.g., `image-1.png`, `image-2.jpg`) and referenced by path in the JSX. If not provided, images will be embedded as base64 data URIs (default behavior).
 
-**Example Request:**
+**Example Request (with base64 images, default):**
 
 ```json
 {
@@ -121,6 +122,23 @@ Convert an existing Word document (.docx) to JSX code.
     "name": "docx_to_jsx",
     "arguments": {
       "docxPath": "/path/to/template.docx"
+    }
+  }
+}
+```
+
+**Example Request (with exported images):**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "docx_to_jsx",
+    "arguments": {
+      "docxPath": "/path/to/template.docx",
+      "imageExportDir": "/path/to/images"
     }
   }
 }

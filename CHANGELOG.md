@@ -7,6 +7,28 @@
 
 ---
 
+## [Unreleased]
+
+### 新增 (Added)
+- **DOCX 转 JSX 图片导出** (`DocxToJsx`): 支持将 DOCX 中的图片导出到指定文件夹，并在生成的 JSX 中通过文件路径引用
+  - `DocxToJsx.convert(docxPath, imageExportDir)` - 可选的图片导出目录参数
+  - `DocxToJsx.convertToFile(docxPath, jsxPath, imageExportDir)` - 同上
+  - MCP 工具 `docx_to_jsx` 新增 `imageExportDir` 可选参数
+  - 默认行为（不指定目录）保持不变：图片嵌入为 base64 编码
+  - 图片自动以 `image-1.png`, `image-2.jpg` 等命名，根据 MIME 类型自动选择扩展名
+  - 导出目录不存在时自动创建
+  ```java
+  // 导出图片到文件夹
+  String jsx = DocxToJsx.convert("template.docx", Paths.get("images"));
+  // 生成的 JSX 中: <Image src="/path/to/images/image-1.png" ... />
+  
+  // 默认行为（向后兼容）
+  String jsx = DocxToJsx.convert("template.docx"); 
+  // 生成的 JSX 中: <Image src="data:image/png;base64,..." ... />
+  ```
+
+---
+
 ## [0.2.0] - 2024-12-08
 
 ### 新增 (Added)
