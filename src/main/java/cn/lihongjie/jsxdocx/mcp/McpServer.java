@@ -135,9 +135,16 @@ public class McpServer {
         // Tool 2: generate_docx
         ObjectNode docTool = mapper.createObjectNode();
         docTool.put("name", "generate_docx");
-        docTool.put("description", "Generate a Word document (.docx) from JSX code. " +
+        docTool.put("description", "Generate a Word document (.docx) from JSX code or JSX file. " +
                 "Supports all Word features including styles, tables, lists, images, headers/footers, TOC, etc. " +
-                "⚠️ PREREQUISITE REQUIRED: You MUST call get_component_spec FIRST to read the complete specification " +
+                "\n\n💡 RECOMMENDED WORKFLOW: " +
+                "1) Use docx_to_jsx to convert existing template to JSX file, " +
+                "2) Review and modify the JSX file as needed, " +
+                "3) Use this tool with jsxFilePath parameter to generate final DOCX. " +
+                "This approach works better than passing large JSX code directly, especially for complex documents with images. " +
+                "\n\nYou can either provide JSX code directly (jsxCode parameter) or a path to a JSX file (jsxFilePath parameter). " +
+                "Using jsxFilePath is strongly recommended as it ensures correct path resolution for images and included files. " +
+                "\n\n⚠️ PREREQUISITE REQUIRED: You MUST call get_component_spec FIRST to read the complete specification " +
                 "before using this tool. Generating documents without reading the spec will result in syntax errors.");
         
         ObjectNode inputSchema = mapper.createObjectNode();
@@ -148,8 +155,15 @@ public class McpServer {
         ObjectNode jsxCode = mapper.createObjectNode();
         jsxCode.put("type", "string");
         jsxCode.put("description", "JSX code defining the document structure. " +
-                "Use <Document>, <Section>, <Paragraph>, <Text>, <Table>, etc.");
+                "Use <Document>, <Section>, <Paragraph>, <Text>, <Table>, etc. " +
+                "Either jsxCode or jsxFilePath must be provided (not both).");
         properties.set("jsxCode", jsxCode);
+        
+        ObjectNode jsxFilePath = mapper.createObjectNode();
+        jsxFilePath.put("type", "string");
+        jsxFilePath.put("description", "Path to a JSX file to use as input. " +
+                "Either jsxCode or jsxFilePath must be provided (not both).");
+        properties.set("jsxFilePath", jsxFilePath);
         
         ObjectNode outputPath = mapper.createObjectNode();
         outputPath.put("type", "string");
@@ -163,7 +177,6 @@ public class McpServer {
         
         inputSchema.set("properties", properties);
         ArrayNode required = mapper.createArrayNode();
-        required.add("jsxCode");
         required.add("outputPath");
         inputSchema.set("required", required);
         
@@ -179,7 +192,8 @@ public class McpServer {
                 "3) Modify the JSX as needed (change text, add/remove sections, update styles), " +
                 "4) Generate new document using generate_docx. This is ideal for creating documents " +
                 "based on existing templates or corporate formats. " +
-                "Images can be exported to a folder and referenced by path, or embedded as base64 (default).");
+                "By default, images are exported to a directory as separate files. " +
+                "Use embedImages=true to embed images as base64 data URIs instead.");
         
         ObjectNode reverseSchema = mapper.createObjectNode();
         reverseSchema.put("type", "object");
@@ -194,9 +208,22 @@ public class McpServer {
         ObjectNode imageExportDir = mapper.createObjectNode();
         imageExportDir.put("type", "string");
         imageExportDir.put("description", "Optional directory path to export images. " +
-                "If provided, images will be saved as separate files and referenced by path in JSX. " +
-                "If not provided, images will be embedded as base64 data URIs (default).");
+                "If not provided and embedImages is false, images will be exported to an 'images' subdirectory " +
+                "next to the output JSX file. This parameter is ignored if embedImages is true.");
         reverseProperties.set("imageExportDir", imageExportDir);
+        
+        ObjectNode outputJsxPath = mapper.createObjectNode();
+        outputJsxPath.put("type", "string");
+        outputJsxPath.put("description", "Optional output file path for the JSX code. " +
+                "If provided, JSX code will be written to this file instead of being returned in the response. " +
+                "This is recommended for large documents to avoid returning too much data.");
+        reverseProperties.set("outputJsxPath", outputJsxPath);
+        
+        ObjectNode embedImages = mapper.createObjectNode();
+        embedImages.put("type", "boolean");
+        embedImages.put("description", "If true, embed images as base64 data URIs in JSX instead of exporting to files. " +
+                "Default is false (export images to directory).");
+        reverseProperties.set("embedImages", embedImages);
         
         reverseSchema.set("properties", reverseProperties);
         ArrayNode reverseRequired = mapper.createArrayNode();
@@ -284,7 +311,23 @@ public class McpServer {
 
     private JsonNode handleGenerateDocx(JsonNode id, JsonNode arguments) {
         try {
-            String jsxCode = arguments.get("jsxCode").asText();
+            // Get JSX code - either from direct input or from file
+            String jsxCode = null;
+            Path jsxSourcePath = null;
+            
+            if (arguments.has("jsxCode") && !arguments.get("jsxCode").isNull()) {
+                jsxCode = arguments.get("jsxCode").asText();
+            } else if (arguments.has("jsxFilePath") && !arguments.get("jsxFilePath").isNull()) {
+                String jsxFilePath = arguments.get("jsxFilePath").asText();
+                jsxSourcePath = Paths.get(jsxFilePath).toAbsolutePath();
+                if (!Files.exists(jsxSourcePath)) {
+                    throw new FileNotFoundException("JSX file not found: " + jsxSourcePath);
+                }
+                jsxCode = Files.readString(jsxSourcePath);
+            } else {
+                throw new IllegalArgumentException("Either 'jsxCode' or 'jsxFilePath' must be provided");
+            }
+            
             String outputPath = arguments.get("outputPath").asText();
             Map<String, Object> dataContext = null;
             
@@ -302,14 +345,20 @@ public class McpServer {
             Path outputFile = Paths.get(outputPath).toAbsolutePath();
             Files.createDirectories(outputFile.getParent());
             
-            renderer.renderToDocx(vdom, outputFile.toString(), outputFile.getParent(), dataContext);
+            // Use jsxSourcePath as base path if available, otherwise use output parent
+            Path basePath = jsxSourcePath != null ? jsxSourcePath.getParent() : outputFile.getParent();
+            renderer.renderToDocx(vdom, outputFile.toString(), basePath, dataContext);
 
             // Success response
             ArrayNode content = mapper.createArrayNode();
             ObjectNode textContent = mapper.createObjectNode();
             textContent.put("type", "text");
-            textContent.put("text", "Successfully generated DOCX file: " + outputFile.toString() + 
-                    "\nFile size: " + Files.size(outputFile) + " bytes");
+            String successMsg = "Successfully generated DOCX file: " + outputFile.toString() + 
+                    "\nFile size: " + Files.size(outputFile) + " bytes";
+            if (jsxSourcePath != null) {
+                successMsg += "\nSource JSX: " + jsxSourcePath.toString();
+            }
+            textContent.put("text", successMsg);
             content.add(textContent);
 
             ObjectNode result = mapper.createObjectNode();
@@ -338,12 +387,49 @@ public class McpServer {
         try {
             String docxPath = arguments.get("docxPath").asText();
             
-            // Get optional image export directory
+            // Get embedImages flag (default: false, meaning export to files)
+            boolean embedImages = false;
+            if (arguments.has("embedImages") && !arguments.get("embedImages").isNull()) {
+                embedImages = arguments.get("embedImages").asBoolean();
+            }
+            
+            // Determine image export directory
             Path imageExportDir = null;
-            if (arguments.has("imageExportDir") && !arguments.get("imageExportDir").isNull()) {
-                String imageExportDirStr = arguments.get("imageExportDir").asText();
-                if (imageExportDirStr != null && !imageExportDirStr.trim().isEmpty()) {
-                    imageExportDir = Paths.get(imageExportDirStr);
+            if (!embedImages) {
+                // Default behavior: export images to directory
+                if (arguments.has("imageExportDir") && !arguments.get("imageExportDir").isNull()) {
+                    String imageExportDirStr = arguments.get("imageExportDir").asText();
+                    if (imageExportDirStr != null && !imageExportDirStr.trim().isEmpty()) {
+                        imageExportDir = Paths.get(imageExportDirStr).toAbsolutePath();
+                    }
+                }
+                
+                // If no imageExportDir specified and outputJsxPath is provided, derive from output path
+                if (imageExportDir == null && arguments.has("outputJsxPath") && !arguments.get("outputJsxPath").isNull()) {
+                    String outputJsxPathStr = arguments.get("outputJsxPath").asText();
+                    if (outputJsxPathStr != null && !outputJsxPathStr.trim().isEmpty()) {
+                        Path outputPath = Paths.get(outputJsxPathStr).toAbsolutePath();
+                        imageExportDir = outputPath.getParent().resolve("images");
+                    }
+                }
+                
+                // Last resort: use current directory + images
+                if (imageExportDir == null) {
+                    imageExportDir = Paths.get("images").toAbsolutePath();
+                }
+                
+                // Create image directory if it doesn't exist
+                if (!Files.exists(imageExportDir)) {
+                    Files.createDirectories(imageExportDir);
+                }
+            }
+            
+            // Get optional output JSX file path
+            Path outputJsxPath = null;
+            if (arguments.has("outputJsxPath") && !arguments.get("outputJsxPath").isNull()) {
+                String outputJsxPathStr = arguments.get("outputJsxPath").asText();
+                if (outputJsxPathStr != null && !outputJsxPathStr.trim().isEmpty()) {
+                    outputJsxPath = Paths.get(outputJsxPathStr).toAbsolutePath();
                 }
             }
             
@@ -357,9 +443,21 @@ public class McpServer {
             
             String message = "Successfully converted DOCX to JSX";
             if (imageExportDir != null) {
-                message += "\nImages exported to: " + imageExportDir.toAbsolutePath();
+                message += "\nImages exported to: " + imageExportDir.toString();
+            } else {
+                message += "\nImages embedded as base64";
             }
-            message += ":\n\n" + jsxCode;
+            
+            // If output path specified, write to file instead of returning content
+            if (outputJsxPath != null) {
+                Files.createDirectories(outputJsxPath.getParent());
+                Files.writeString(outputJsxPath, jsxCode);
+                message += "\nJSX code written to: " + outputJsxPath.toString();
+                message += "\nFile size: " + Files.size(outputJsxPath) + " bytes";
+            } else {
+                // Return JSX code in response (for small documents)
+                message += ":\n\n" + jsxCode;
+            }
             
             textContent.put("text", message);
             content.add(textContent);

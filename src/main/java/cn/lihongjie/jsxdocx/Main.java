@@ -18,7 +18,7 @@ import java.util.concurrent.Callable;
         name = "jsx-docx",
         mixinStandardHelpOptions = true,
         version = "jsx-docx 0.2.0",
-        description = "Convert JSX document(s) to DOCX. Supports single file or batch conversion."
+        description = "Convert between JSX and DOCX. Supports single file or batch conversion."
 )
 public class Main implements Callable<Integer> {
 
@@ -39,6 +39,15 @@ public class Main implements Callable<Integer> {
 
     @Option(names = "--verbose", description = "Enable verbose output")
     private boolean verbose;
+
+    @Option(names = {"--reverse", "-r"}, description = "Reverse mode: convert DOCX to JSX instead of JSX to DOCX")
+    private boolean reverse;
+
+    @Option(names = "--image-dir", description = "Directory to export images when converting DOCX to JSX (default: same as output file)")
+    private File imageDir;
+
+    @Option(names = "--embed-images", description = "Embed images as base64 in JSX instead of exporting to files (reverse mode only)")
+    private boolean embedImages;
 
     @Option(names = "--progress", description = "Show progress bar for batch conversion (default: true)", defaultValue = "true")
     private boolean progress;
@@ -74,10 +83,16 @@ public class Main implements Callable<Integer> {
         if (inputs == null || inputs.isEmpty()) {
             System.err.println("Error: No input files specified.");
             System.err.println("Usage: jsx-docx [OPTIONS] <input-files...>");
+            System.err.println("   or: jsx-docx --reverse <docx-files...> [-o output.jsx]");
             System.err.println("   or: jsx-docx --stdin [-o output.docx]");
             System.err.println("   or: jsx-docx --mcp-stdio");
             System.err.println("   or: jsx-docx --mcp-server [--mcp-port=3000]");
             return 2;
+        }
+
+        // Reverse mode: DOCX to JSX
+        if (reverse) {
+            return processDocxToJsx();
         }
 
         // Validate options
@@ -267,6 +282,179 @@ public class Main implements Callable<Integer> {
     private Map<String, Object> loadJsonFile(File file) throws IOException {
         ObjectMapper mapper = new ObjectMapper();
         return mapper.readValue(file, Map.class);
+    }
+
+    /**
+     * Process DOCX to JSX conversion (reverse mode)
+     */
+    private Integer processDocxToJsx() {
+        // Validate options
+        if (inputs.size() > 1 && output != null) {
+            System.err.println("Error: --output (-o) can only be used with a single input file.");
+            System.err.println("For batch mode, use --output-dir (-d) instead.");
+            return 4;
+        }
+
+        if (dataFile != null) {
+            System.err.println("Warning: --data option is ignored in reverse mode (DOCX to JSX)");
+        }
+
+        // Initialize report tracking
+        List<ConversionResult> results = new ArrayList<>();
+        boolean shouldShowProgress = !noProgress && progress && inputs.size() > 1 && !verbose;
+        
+        if (inputs.size() > 1 && verbose) {
+            System.out.println("Batch mode: converting " + inputs.size() + " DOCX files to JSX...");
+        }
+
+        int successCount = 0;
+        int failureCount = 0;
+        long startTime = System.currentTimeMillis();
+
+        // Determine image export strategy
+        // If --embed-images is set, don't export to directory (pass null)
+        // Otherwise, use --image-dir if specified, or derive from output location
+        boolean shouldExportImages = !embedImages;
+
+        for (int i = 0; i < inputs.size(); i++) {
+            File input = inputs.get(i);
+            long fileStartTime = System.currentTimeMillis();
+            try {
+                if (!input.exists()) {
+                    String errorMsg = "Input file not found";
+                    if (!shouldShowProgress) {
+                        System.err.println("✗ " + input.getName() + ": " + errorMsg);
+                    }
+                    if (reportFile != null) {
+                        results.add(new ConversionResult(input.getName(), "error", null, errorMsg, 
+                            System.currentTimeMillis() - fileStartTime));
+                    }
+                    failureCount++;
+                    if (shouldShowProgress) showProgress(i + 1, inputs.size(), input.getName());
+                    continue;
+                }
+
+                // Determine output file
+                File outFile;
+                if (inputs.size() == 1 && output != null) {
+                    // Single file mode with explicit output
+                    outFile = output;
+                } else {
+                    // Batch mode or single file with auto-naming
+                    String base = input.getName();
+                    int dot = base.lastIndexOf('.');
+                    if (dot != -1) base = base.substring(0, dot);
+                    String outName = base + ".jsx";
+
+                    if (outputDir != null) {
+                        if (!outputDir.exists()) {
+                            outputDir.mkdirs();
+                        }
+                        outFile = new File(outputDir, outName);
+                    } else {
+                        outFile = new File(outName);
+                    }
+                }
+
+                // Determine image export directory for this file
+                Path currentImageExportDir = null;
+                if (shouldExportImages) {
+                    if (imageDir != null) {
+                        // Use user-specified image directory
+                        currentImageExportDir = imageDir.toPath();
+                    } else {
+                        // Default: create 'images' subdirectory next to output file
+                        Path outPath = outFile.toPath().toAbsolutePath();
+                        currentImageExportDir = outPath.getParent().resolve("images");
+                    }
+                    
+                    // Create image directory if it doesn't exist
+                    if (!Files.exists(currentImageExportDir)) {
+                        Files.createDirectories(currentImageExportDir);
+                        if (verbose) {
+                            System.out.println("[" + input.getName() + "] Created image directory: " + currentImageExportDir);
+                        }
+                    }
+                }
+
+                if (verbose) {
+                    System.out.println("[" + input.getName() + "] Converting DOCX to JSX...");
+                    if (currentImageExportDir != null) {
+                        System.out.println("[" + input.getName() + "] Exporting images to: " + currentImageExportDir);
+                    } else {
+                        System.out.println("[" + input.getName() + "] Embedding images as base64");
+                    }
+                }
+
+                // Convert DOCX to JSX
+                String jsxCode = DocxToJsx.convert(input.getAbsolutePath(), currentImageExportDir);
+
+                // Write JSX to output file
+                Files.writeString(outFile.toPath(), jsxCode);
+                
+                long elapsed = System.currentTimeMillis() - fileStartTime;
+                if (!shouldShowProgress) {
+                    System.out.println("✓ Generated: " + outFile.getAbsolutePath());
+                }
+                
+                if (reportFile != null) {
+                    results.add(new ConversionResult(input.getName(), "success", outFile.getAbsolutePath(), 
+                        null, elapsed));
+                }
+                successCount++;
+                
+                if (shouldShowProgress) {
+                    showProgress(i + 1, inputs.size(), input.getName());
+                }
+                
+            } catch (IOException ioe) {
+                long elapsed = System.currentTimeMillis() - fileStartTime;
+                String errorMsg = "I/O error: " + ioe.getMessage();
+                if (!shouldShowProgress) {
+                    System.err.println("✗ [" + input.getName() + "] " + errorMsg);
+                }
+                if (reportFile != null) {
+                    results.add(new ConversionResult(input.getName(), "error", null, errorMsg, elapsed));
+                }
+                failureCount++;
+                if (shouldShowProgress) showProgress(i + 1, inputs.size(), input.getName());
+            } catch (Exception e) {
+                long elapsed = System.currentTimeMillis() - fileStartTime;
+                String errorMsg = e.getMessage();
+                if (!shouldShowProgress) {
+                    System.err.println("✗ [" + input.getName() + "] Failed: " + errorMsg);
+                }
+                if (verbose && !shouldShowProgress) e.printStackTrace();
+                if (reportFile != null) {
+                    results.add(new ConversionResult(input.getName(), "error", null, errorMsg, elapsed));
+                }
+                failureCount++;
+                if (shouldShowProgress) showProgress(i + 1, inputs.size(), input.getName());
+            }
+        }
+
+        // Clear progress line if shown
+        if (shouldShowProgress) {
+            System.out.print("\r" + " ".repeat(80) + "\r");
+        }
+
+        // Summary for batch mode
+        if (inputs.size() > 1) {
+            long totalTime = System.currentTimeMillis() - startTime;
+            System.out.println("\nBatch conversion complete: " + successCount + " succeeded, " + failureCount + " failed. (" + totalTime + "ms)");
+        }
+
+        // Generate report if requested
+        if (reportFile != null) {
+            try {
+                generateReport(results, successCount, failureCount, reportFile);
+                System.out.println("Report generated: " + reportFile.getAbsolutePath());
+            } catch (IOException e) {
+                System.err.println("Error generating report: " + e.getMessage());
+            }
+        }
+
+        return failureCount > 0 ? 1 : 0;
     }
 
     /**
