@@ -1,5 +1,6 @@
 package cn.lihongjie.jsxdocx;
 
+import cn.lihongjie.jsxdocx.exception.ComponentValidationException;
 import cn.lihongjie.jsxdocx.model.VNode;
 import org.apache.poi.xwpf.usermodel.*;
 import org.apache.poi.util.Units;
@@ -267,11 +268,11 @@ public class Renderer {
         }
     }
 
-    public void renderToDocx(VNode vDom, String outputPath) throws IOException {
+    public void renderToDocx(VNode vDom, String outputPath) throws IOException, ComponentValidationException {
         renderToDocx(vDom, outputPath, null, null);
     }
 
-    public void renderToDocx(VNode vDom, String outputPath, Path sourcePath, Map<String, Object> dataContext) throws IOException {
+    public void renderToDocx(VNode vDom, String outputPath, Path sourcePath, Map<String, Object> dataContext) throws IOException, ComponentValidationException {
         this.basePath = sourcePath != null ? sourcePath.getParent() : Paths.get(".");
         this.dataContext = dataContext;
         this.includeStack = new HashSet<>();
@@ -283,7 +284,10 @@ public class Renderer {
         try (XWPFDocument document = new XWPFDocument()) {
 
             if (!"document".equals(vDom.getType())) {
-                throw new IllegalArgumentException("Root element must be <Document>");
+                throw new ComponentValidationException(
+                    "Root",
+                    "Root element must be <Document>, but found <" + vDom.getType() + ">"
+                );
             }
 
             renderChildren(document, vDom);
@@ -753,11 +757,25 @@ public class Renderer {
     private void renderInclude(Object parent, VNode node) {
         String pathStr = String.valueOf(node.getProps().get("path"));
         if (pathStr == null || "null".equals(pathStr) || pathStr.isEmpty()) {
-            System.err.println("Error: <Include> component requires 'path' property");
-            return;
+            try {
+                throw new ComponentValidationException(
+                    "Include",
+                    "path",
+                    "Missing required property 'path'"
+                );
+            } catch (ComponentValidationException e) {
+                System.err.println(e.getMessage());
+                return;
+            }
         }
 
         try {
+            // Check if basePath is set
+            if (basePath == null) {
+                System.err.println("Error processing <Include path='" + pathStr + "'>: basePath not initialized. Include components require the source file path to be specified.");
+                return;
+            }
+            
             // Resolve relative path
             Path includePath = basePath.resolve(pathStr).normalize().toAbsolutePath();
             
@@ -769,7 +787,7 @@ public class Renderer {
                     chain.append(p.getFileName());
                 }
                 chain.append(" → ").append(includePath.getFileName());
-                throw new IllegalStateException("Circular include detected: " + chain);
+                throw new IllegalStateException("Circular include detected: " + chain.toString());
             }
             
             // Read file

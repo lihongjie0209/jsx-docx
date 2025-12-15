@@ -1,5 +1,8 @@
 package cn.lihongjie.jsxdocx;
 
+import cn.lihongjie.jsxdocx.exception.ComponentValidationException;
+import cn.lihongjie.jsxdocx.exception.JsxRuntimeException;
+import cn.lihongjie.jsxdocx.exception.JsxSyntaxException;
 import cn.lihongjie.jsxdocx.mcp.McpServer;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -204,6 +207,48 @@ public class Main implements Callable<Integer> {
                     showProgress(i + 1, inputs.size(), input.getName());
                 }
                 
+            } catch (JsxSyntaxException jse) {
+                long elapsed = System.currentTimeMillis() - fileStartTime;
+                if (!shouldShowProgress) {
+                    System.err.println("\n" + "=".repeat(80));
+                    System.err.println("✗ [" + input.getName() + "]");
+                    System.err.println(jse.getMessage());
+                    System.err.println("=".repeat(80));
+                }
+                if (reportFile != null) {
+                    results.add(new ConversionResult(input.getName(), "error", null, 
+                        "JSX Syntax Error: " + jse.getErrorMessage(), elapsed));
+                }
+                failureCount++;
+                if (shouldShowProgress) showProgress(i + 1, inputs.size(), input.getName());
+            } catch (JsxRuntimeException jre) {
+                long elapsed = System.currentTimeMillis() - fileStartTime;
+                if (!shouldShowProgress) {
+                    System.err.println("\n" + "=".repeat(80));
+                    System.err.println("✗ [" + input.getName() + "]");
+                    System.err.println(jre.getMessage());
+                    System.err.println("=".repeat(80));
+                }
+                if (reportFile != null) {
+                    results.add(new ConversionResult(input.getName(), "error", null, 
+                        "Runtime Error: " + jre.getMessage(), elapsed));
+                }
+                failureCount++;
+                if (shouldShowProgress) showProgress(i + 1, inputs.size(), input.getName());
+            } catch (ComponentValidationException cve) {
+                long elapsed = System.currentTimeMillis() - fileStartTime;
+                if (!shouldShowProgress) {
+                    System.err.println("\n" + "=".repeat(80));
+                    System.err.println("✗ [" + input.getName() + "]");
+                    System.err.println(cve.getMessage());
+                    System.err.println("=".repeat(80));
+                }
+                if (reportFile != null) {
+                    results.add(new ConversionResult(input.getName(), "error", null, 
+                        "Component Error: " + cve.getMessage(), elapsed));
+                }
+                failureCount++;
+                if (shouldShowProgress) showProgress(i + 1, inputs.size(), input.getName());
             } catch (IOException ioe) {
                 long elapsed = System.currentTimeMillis() - fileStartTime;
                 String errorMsg = "I/O error: " + ioe.getMessage();
@@ -515,6 +560,24 @@ public class Main implements Callable<Integer> {
             System.out.println("✓ Generated: " + outFile.getAbsolutePath());
             return 0;
 
+        } catch (JsxSyntaxException jse) {
+            System.err.println("\n" + "=".repeat(80));
+            System.err.println("✗ JSX Syntax Error:");
+            System.err.println(jse.getMessage());
+            System.err.println("=".repeat(80));
+            return 1;
+        } catch (JsxRuntimeException jre) {
+            System.err.println("\n" + "=".repeat(80));
+            System.err.println("✗ Runtime Error:");
+            System.err.println(jre.getMessage());
+            System.err.println("=".repeat(80));
+            return 1;
+        } catch (ComponentValidationException cve) {
+            System.err.println("\n" + "=".repeat(80));
+            System.err.println("✗ Component Validation Error:");
+            System.err.println(cve.getMessage());
+            System.err.println("=".repeat(80));
+            return 1;
         } catch (IOException ioe) {
             System.err.println("✗ I/O error: " + ioe.getMessage());
             return 1;
